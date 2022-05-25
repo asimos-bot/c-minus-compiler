@@ -1,6 +1,9 @@
 int main(void) {
+    /*
+    adsfsdf 
+    */
     int array[ 10];
-    int i = 0;
+    int i = 0; 
     int whileis = i+ 2;
     while( i > 10 ) {
         array[i ] = i + whileis;
