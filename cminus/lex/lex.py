@@ -29,20 +29,25 @@ class Lex:
 
     def get_tokens_from_file(self, filename: str):
         with open(filename, 'rt') as file:
-            return self.get_tokens(file.read())
+            for idx, line in enumerate(file.readlines()):
+                for token in self.get_tokens(line, idx+1):
+                    yield token
 
-    def get_tokens(self, source: str):
+    def get_tokens(self, source: str, line: str):
         i = 0
-        add, token = self.get_token(source[i:])
+        add, token = self.get_token(source[i:], line)
+
         i += add
         while token.get_type() != TokenType.EOF and i < len(source):
             yield token
-            add, token = self.get_token(source[i:])
+            add, token = self.get_token(source[i:], line)
+            if token is None:
+                return
             i += add
         yield token
 
 
-    def get_token(self, source: str) -> Tuple[int, Token]:
+    def get_token(self, source: str, line: int) -> Tuple[int, Token]:
         state = LexState.SPACE
         token = ''
         i = 0
@@ -56,7 +61,7 @@ class Lex:
                     state = LexState.IDENTIFIER
                 elif c == '0':
                     if next_c in self.NUMBER:
-                        raise LexError("ERRO\n\tO numero não pode comecar com 0") 
+                        raise LexError(f"ERRO NA LINHA {line}\n\tO numero não pode comecar com 0") 
                     token += c     
                     i += 1               
                     return (i, Token(token, TokenType.NUMBER))
@@ -86,7 +91,7 @@ class Lex:
             elif state == LexState.NUMBER:
                 if c.lower() in self.LETTER:
                     state = LexState.ERROR
-                    raise LexError(f'ERRO\n\tO numero {token} não pode ser seguido por {c}.')
+                    raise LexError(f'ERRO NA LINHA {line}\n\tO numero {token} não pode ser seguido por {c}.')
                 elif c in self.NUMBER:
                     token += c
                     state = LexState.NUMBER
@@ -100,7 +105,7 @@ class Lex:
                     return (i, Token(token))
                 elif c in self.COMPARATOR or c in self.OPERATOR or c in [',',';']:
                     state = LexState.ERROR
-                    raise LexError(f'ERRO\n\tO comparador {token+c} é inválido .')
+                    raise LexError(f'ERRO NA LINHA {line}\n\tO comparador {token+c} é inválido .')
                 else:
                     return (i, Token(token))
 
@@ -108,3 +113,4 @@ class Lex:
                 if c == '*' and next_c == '/':
                     return (i, Token(token))
             i+=1
+        return (i, None)
