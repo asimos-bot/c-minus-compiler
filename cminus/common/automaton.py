@@ -25,7 +25,6 @@ class State:
         self._in: list[Transition] = []
 
     def connect_to(self, _to: '__class__', _input):
-        if
         transition = Transition(_from=self, _to=_to, _input=_input)
         self._out.append(transition)
 
@@ -36,15 +35,13 @@ class State:
 
 class Automaton:
     def __init__(self, csv_file_or_dict):
-        dict_table: dict = dict()
+        self.table: dict = dict()
         if(type(csv_file_or_dict) == str):
-            dict_table = self.get_table_from_csv(csv_file_or_dict)
-        elif(type(csv_file_or_dict) == dict):
-            dict_table = csv_file_or_dict
-        self.table = self.dict_to_table(dict_table)
+            self.table = self.get_table_from_csv(csv_file_or_dict)
+        else:
+            self.table = self.get_table_from_dict(csv_file_or_dict)
 
-    def get_table_from_csv(csv_file: str):
-        pass
+    def get_table_from_dict(self, d):
+        table = {State(k): dict() for k in d}
+        for k in d:
 
-    def dict_to_table(dict_table: dict):
-        table = dict()
