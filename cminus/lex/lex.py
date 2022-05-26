@@ -19,7 +19,9 @@ class LexState(Enum):
     DELIMITER = 5
     COMMENT = 6
     ERROR = 8
-
+    INITIAL_ZERO = 9
+    SPACE_TO_SLASH = 10
+    COMMENT_TO_ASTERISK = 11
 
 class Lex:
 
@@ -57,9 +59,6 @@ class Lex:
         token = ''
         i = 0
         for idx, c in enumerate(source):
-            next_c = ''
-            if idx < len(source)-1:
-                next_c = source[idx+1]
             if c not in self.VALID:
                 raise LexError(f"ERRO NA LINHA {line}\n\tCaracter '{c}' é inválido")
             if self.state == LexState.SPACE:
@@ -67,21 +66,15 @@ class Lex:
                     token += c
                     self.state = LexState.IDENTIFIER
                 elif c == '0':
-                    if next_c in self.NUMBER:
-                        raise LexError(f"ERRO NA LINHA {line}\n\tO numero não pode comecar com 0")
+                    self.state = LexState.INITIAL_ZERO
                     token += c
-                    i += 1
-                    self.state = LexState.SPACE
-                    return (i, Token(token, TokenType.NUMBER))
+
                 elif c in self.NUMBER:
                     token += c
                     self.state = LexState.NUMBER
-                elif c == '/' and next_c == '*':
-                    i += 2
+                elif c == '/':
                     token += c
-                    token += next_c
-                    self.state = LexState.COMMENT
-                    return (i, Token(token, TokenType.COMMENT))
+                    self.state = LexState.SPACE_TO_SLASH
                 elif c in self.DELIMITER:
                     token += c
                     i += 1
@@ -96,6 +89,17 @@ class Lex:
                     token += c
                     self.state = LexState.COMPARATOR
 
+            elif self.state == LexState.INITIAL_ZERO:
+                if c in self.NUMBER:
+                    raise LexError(f"ERRO NA LINHA {line}\n\tO numero não pode comecar com 0")
+                self.state = LexState.SPACE
+                return (i, Token(token, TokenType.NUMBER))
+            elif self.state == LexState.SPACE_TO_SLASH:
+                if c == '*':
+                    token += c
+                    self.state = LexState.COMMENT
+                    i += 1
+                    return (i, Token(token, TokenType.COMMENT))
             elif self.state == LexState.IDENTIFIER:
                 if c.lower() in self.LETTER or c in self.NUMBER:
                     token += c
@@ -128,16 +132,19 @@ class Lex:
                     return (i, Token(token))
 
             elif self.state == LexState.COMMENT:
-                if c == '*' and next_c == '/':
-                    self.state = LexState.SPACE
-                    i += 2
+                if c == '*':
+                    self.state = LexState.COMMENT_TO_ASTERISK
+                    i += 1
                     token += c
-                    token += next_c
-                    return (i, Token(token, token_type=TokenType.COMMENT))
                 else:
                     token += c
+            elif self.state == LexState.COMMENT_TO_ASTERISK:
+                if c == '/':
+                    self.state = LexState.SPACE
+                    token += c
+                    i += 1
+                    return (i, Token(token, token_type=TokenType.COMMENT))
             i += 1
         if self.state == LexState.COMMENT:
             return (len(token), Token(token, TokenType.COMMENT))
         return (i, None)
-
