@@ -31,6 +31,8 @@ class Lex:
         self.OPERATOR = ['+', '-', '*', '/']
         self.COMPARATOR = ['<', '>', '=', '!']
         self.DELIMITER = [';', ',', '(', ')', '[', ']', '{', '}']
+        self.WHITESPACE = ['\n', '\t', ' ']
+        self.VALID = self.LETTER + self.NUMBER + self.OPERATOR + self.COMPARATOR + self.DELIMITER + self.WHITESPACE
 
     def get_tokens_from_file(self, filename: str):
         with open(filename, 'rt') as file:
@@ -58,6 +60,8 @@ class Lex:
             next_c = ''
             if idx < len(source)-1:
                 next_c = source[idx+1]
+            if c not in self.VALID:
+                raise LexError(f"ERRO NA LINHA {line}\n\tCaracter '{c}' é inválido")
             if self.state == LexState.SPACE:
                 if c.lower() in self.LETTER:
                     token += c
@@ -118,7 +122,7 @@ class Lex:
                     return (i, Token(token))
                 elif c in self.COMPARATOR or c in self.OPERATOR or c in [',', ';']:
                     self.state = LexState.ERROR
-                    raise LexError(f'ERRO NA LINHA {line}\n\tO comparador {token+c} é inválido .')
+                    raise LexError(f'ERRO NA LINHA {line}\n\tO comparador {token+c} é inválido.')
                 else:
                     self.state = LexState.SPACE
                     return (i, Token(token))
