@@ -48,12 +48,14 @@ class Lex:
 
         i += add
         while token.get_type() != TokenType.EOF and i < len(source):
-            yield token
+            if token.get_type() != TokenType.SKIP:
+                yield token
             add, token = self.get_token(source[i:], line)
             if token is None:
                 return
             i += add
-        yield token
+        if token.get_type() != TokenType.SKIP:
+            yield token
 
     def get_token(self, source: str, line: int) -> Tuple[int, Token]:
         token = ''
@@ -68,7 +70,6 @@ class Lex:
                 elif c == '0':
                     self.state = LexState.INITIAL_ZERO
                     token += c
-
                 elif c in self.NUMBER:
                     token += c
                     self.state = LexState.NUMBER
@@ -88,6 +89,11 @@ class Lex:
                 elif c in self.COMPARATOR:
                     token += c
                     self.state = LexState.COMPARATOR
+                elif c in self.WHITESPACE:
+                    if c == '\n':
+                        token += c
+                        i += 1
+                        return (i, Token(token, TokenType.SKIP))
 
             elif self.state == LexState.INITIAL_ZERO:
                 if c in self.NUMBER:
@@ -134,7 +140,6 @@ class Lex:
             elif self.state == LexState.COMMENT:
                 if c == '*':
                     self.state = LexState.COMMENT_TO_ASTERISK
-                    i += 1
                     token += c
                 else:
                     token += c

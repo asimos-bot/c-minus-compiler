@@ -5,6 +5,7 @@ class TokenType(Enum):
     IDENTIFIER = 1
     NUMBER = 2
     COMMENT = 3
+    SKIP = 4
     SPECIAL_ADD = '+'
     SPECIAL_SUB = '-'
     SPECIAL_MUL = '*'

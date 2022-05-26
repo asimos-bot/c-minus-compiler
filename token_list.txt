@@ -5,9 +5,7 @@
 [type = SPECIAL_PARENTHESIS_CLOSE, token = ')']
 [type = SPECIAL_CURLY_BRACKET_OPEN, token = '{']
 [type = COMMENT, token = '/*']
-[type = COMMENT, token = '
-']
-[type = COMMENT, token = '    adsfsdf 
+[type = COMMENT, token = ' adsfsdf
 ']
 [type = COMMENT, token = '    */']
 [type = KEYWORD_INT, token = 'int']

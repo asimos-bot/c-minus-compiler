@@ -1,6 +1,6 @@
 int main(void) {
-    /*
-    adsfsdf 
+
+    /* adsfsdf
     */
     int array[ 10];
     int i = 0; 
