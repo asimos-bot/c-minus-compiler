@@ -7,7 +7,12 @@
 [type = COMMENT, token = '/*']
 [type = COMMENT, token = ' adsfsdf
 ']
+[type = COMMENT, token = '      ****** testse
+']
 [type = COMMENT, token = '    */']
+[type = IDENTIFIER, token = 'x']
+[type = SPECIAL_DIV, token = '/']
+[type = NUMBER, token = '2']
 [type = KEYWORD_INT, token = 'int']
 [type = IDENTIFIER, token = 'array']
 [type = SPECIAL_BRACKET_OPEN, token = '[']

@@ -1,7 +1,9 @@
 int main(void) {
 
     /* adsfsdf
+      ****** testse
     */
+    x/2
     int array[ 10];
     int i = 0; 
     int whileis = i+ 2;

@@ -62,7 +62,7 @@ class Lex:
         token = ''
         i = 0
         for idx, c in enumerate(source):
-            if c not in self.VALID:
+            if c not in self.VALID and self.state != LexState.COMMENT:
                 raise LexError(f"ERRO NA LINHA {line}\n\tCaracter '{c}' é inválido")
             if self.state == LexState.SPACE:
                 if c.lower() in self.LETTER:
@@ -107,6 +107,9 @@ class Lex:
                     self.state = LexState.COMMENT
                     i += 1
                     return (i, Token(token, TokenType.COMMENT))
+                else:
+                    self.state = LexState.SPACE
+                    return (i, Token(token))
             elif self.state == LexState.IDENTIFIER:
                 if c.lower() in self.LETTER or c in self.NUMBER:
                     token += c
@@ -150,6 +153,9 @@ class Lex:
                     token += c
                     i += 1
                     return (i, Token(token, token_type=TokenType.COMMENT))
+                else:
+                    self.state = LexState.COMMENT
+                    token += c
             i += 1
         if self.state == LexState.COMMENT:
             return (len(token), Token(token, TokenType.COMMENT))
