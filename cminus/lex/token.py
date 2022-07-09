@@ -35,7 +35,7 @@ class TokenType(Enum):
 
 
 class Token:
-    def __init__(self,  content: str, token_type: TokenType = None):
+    def __init__(self,  content: str, line: int, token_type: TokenType = None):
         if token_type is None:
             token_type = TokenType(content)
         if token_type == TokenType.IDENTIFIER:
@@ -45,10 +45,10 @@ class Token:
                 pass
         self.token_type = token_type
         self.content = content
+        self.line = line
 
     def get_type(self) -> TokenType:
         return self.token_type
 
     def __repr__(self) -> str:
-        return f"[type = {self.token_type.name}, token = '{self.content}']"
-
+        return f"[type = {self.token_type.name}, token = '{self.content}, line = {self.line}']"

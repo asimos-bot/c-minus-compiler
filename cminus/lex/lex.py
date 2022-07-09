@@ -35,7 +35,8 @@ class Lex:
         self.COMPARATOR = ['<', '>', '=', '!']
         self.DELIMITER = [';', ',', '(', ')', '[', ']', '{', '}']
         self.WHITESPACE = ['\n', '\t', ' ']
-        self.VALID = self.LETTER + self.NUMBER + self.OPERATOR + self.COMPARATOR + self.DELIMITER + self.WHITESPACE
+        self.VALID = self.LETTER + self.NUMBER + self.OPERATOR + \
+            self.COMPARATOR + self.DELIMITER + self.WHITESPACE
 
     def get_tokens_from_file(self, filename: str):
         with open(filename, 'rt') as file:
@@ -63,7 +64,8 @@ class Lex:
         i = 0
         for idx, c in enumerate(source):
             if c not in self.VALID and self.state != LexState.COMMENT:
-                raise LexError(f"ERRO NA LINHA {line}\n\tCaracter '{c}' é inválido")
+                raise LexError(
+                    f"ERRO NA LINHA {line}\n\tCaracter '{c}' é inválido")
             if self.state == LexState.SPACE:
                 if c.lower() in self.LETTER:
                     token += c
@@ -81,12 +83,12 @@ class Lex:
                     token += c
                     i += 1
                     self.state = LexState.SPACE
-                    return (i, Token(token))
+                    return (i, Token(token, line))
                 elif c in self.OPERATOR:
                     token += c
                     i += 1
                     self.state = LexState.SPACE
-                    return (i, Token(token))
+                    return (i, Token(token, line))
                 elif c in self.COMPARATOR:
                     token += c
                     self.state = LexState.COMPARATOR
@@ -94,52 +96,55 @@ class Lex:
                     if c == '\n':
                         token += c
                         i += 1
-                        return (i, Token(token, TokenType.SKIP))
+                        return (i, Token(token, line, TokenType.SKIP))
 
             elif self.state == LexState.INITIAL_ZERO:
                 if c in self.NUMBER:
-                    raise LexError(f"ERRO NA LINHA {line}\n\tO numero não pode comecar com 0")
+                    raise LexError(
+                        f"ERRO NA LINHA {line}\n\tO numero não pode comecar com 0")
                 self.state = LexState.SPACE
-                return (i, Token(token, TokenType.NUMBER))
+                return (i, Token(token, line, TokenType.NUMBER))
             elif self.state == LexState.SPACE_TO_SLASH:
                 if c == '*':
                     token += c
                     self.state = LexState.COMMENT
                     i += 1
-                    return (i, Token(token, TokenType.COMMENT))
+                    return (i, Token(token, line, TokenType.COMMENT))
                 else:
                     self.state = LexState.SPACE
-                    return (i, Token(token))
+                    return (i, Token(token, line))
             elif self.state == LexState.IDENTIFIER:
                 if c.lower() in self.LETTER or c in self.NUMBER:
                     token += c
                 else:
                     self.state = LexState.SPACE
-                    return (i, Token(token, TokenType.IDENTIFIER))
+                    return (i, Token(token, line, TokenType.IDENTIFIER))
 
             elif self.state == LexState.NUMBER:
                 if c.lower() in self.LETTER:
                     self.state = LexState.ERROR
-                    raise LexError(f'ERRO NA LINHA {line}\n\tO numero {token} não pode ser seguido por {c}.')
+                    raise LexError(
+                        f'ERRO NA LINHA {line}\n\tO numero {token} não pode ser seguido por {c}.')
                 elif c in self.NUMBER:
                     token += c
                     self.state = LexState.NUMBER
                 else:
                     self.state = LexState.SPACE
-                    return (i, Token(token, TokenType.NUMBER))
+                    return (i, Token(token, line, TokenType.NUMBER))
 
             elif self.state == LexState.COMPARATOR:
                 if c == '=':
                     token += c
                     i += 1
                     self.state = LexState.SPACE
-                    return (i, Token(token))
+                    return (i, Token(token, line))
                 elif c in self.COMPARATOR or c in self.OPERATOR or c in [',', ';']:
                     self.state = LexState.ERROR
-                    raise LexError(f'ERRO NA LINHA {line}\n\tO comparador {token+c} é inválido.')
+                    raise LexError(
+                        f'ERRO NA LINHA {line}\n\tO comparador {token+c} é inválido.')
                 else:
                     self.state = LexState.SPACE
-                    return (i, Token(token))
+                    return (i, Token(token, line))
 
             elif self.state == LexState.COMMENT:
                 if c == '*':
@@ -152,13 +157,13 @@ class Lex:
                     self.state = LexState.SPACE
                     token += c
                     i += 1
-                    return (i, Token(token, token_type=TokenType.COMMENT))
+                    return (i, Token(token, line, token_type=TokenType.COMMENT))
                 else:
                     self.state = LexState.COMMENT
                     token += c
             i += 1
         if self.state == LexState.COMMENT:
-            return (len(token), Token(token, TokenType.COMMENT))
+            return (len(token), Token(token, line, TokenType.COMMENT,))
         return (i, None)
 
 
