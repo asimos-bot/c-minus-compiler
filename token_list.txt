@@ -1,0 +1,7 @@
+0 [type = KEYWORD_INT, token = 'int', line = 1']
+1 [type = IDENTIFIER, token = 'main', line = 1']
+2 [type = SPECIAL_PARENTHESIS_OPEN, token = '(', line = 1']
+3 [type = KEYWORD_VOID, token = 'void', line = 1']
+4 [type = SPECIAL_PARENTHESIS_CLOSE, token = ')', line = 1']
+5 [type = SPECIAL_CURLY_BRACKET_OPEN, token = '{', line = 1']
+6 [type = SPECIAL_CURLY_BRACKET_CLOSE, token = '}', line = 1']

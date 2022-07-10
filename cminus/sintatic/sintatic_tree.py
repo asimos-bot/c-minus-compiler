@@ -91,7 +91,6 @@ class Parser:
 
     @pos.setter
     def pos(self, value):
-        print(self.tokens[self.pos], value)
         self._pos = value
 
     def parse(self) -> Node:
@@ -99,7 +98,11 @@ class Parser:
 
     def symbol_program(self) -> bool:
         root = Node(parent=None, symbol=ProductionState.PROGRAM)
-        self.symbol_declaration_list(root)
+        if not self.symbol_declaration_list(root):
+            if self.pos < len(self.tokens):
+                raise ParserException(self.tokens[self.pos])
+            else:
+                raise ParserException(self.tokens[self.pos-1])
         return root
 
     def symbol_declaration_list(self, parent: Node):
@@ -108,7 +111,7 @@ class Parser:
         if self.symbol_declaration(node):
             if self.symbol_declaration_list(node):
                 parent.append(node)
-        return True
+        return False
 
     def symbol_declaration(self, parent: Node) -> bool:
         # <declaration> ::= <var-declaration> | <fun-declaration>
@@ -128,8 +131,8 @@ class Parser:
 
     def symbol_var_declaration(self, parent: Node) -> bool:
         # <var-declaration> ::= <type-specifier> <id> ; | <type-specifier> <id> [ <num> ];
-        pos = self.pos
         node = Node(parent=parent, symbol=ProductionState.VAR_DECLARATION)
+        initial_pos = self.pos
         if self.symbol_type_specifier(node):
             pos = self.pos
             if self.symbol_identifier(node):
@@ -141,9 +144,11 @@ class Parser:
             self.pos = pos
             if self.symbol_bracket_open(node):
                 if self.symbol_number(node):
-                    if self.symbol_bracket_close(node) and self.symbol_semicolon(node):
-                        parent.children.append(node)
-                        return True
+                    if self.symbol_bracket_close(node):
+                        if self.symbol_semicolon(node):
+                            parent.children.append(node)
+                            return True
+            self.pos = initial_pos
         return False
 
     def symbol_type_specifier(self, parent: Node) -> bool:
@@ -241,19 +246,20 @@ class Parser:
         if self.symbol_var_declaration(node):
             self.symbol_local_declarations(node)
             parent.children.append(node)
-            return True
-        self.pos = pos
-        return False
+        else:
+            self.pos = pos
+        return True
 
     def symbol_statement_list(self, parent: Node) -> bool:
         # <statement-list> ::= <statement> <statement-list>  | Ɛ
-        pos = self.pos
         node = Node(parent=parent, symbol=ProductionState.STATEMENT_LIST)
+        pos = self.pos
         if self.symbol_statement(node):
             self.symbol_statement_list(node)
             parent.children.append(node)
-            return True
-        return False
+        else:
+            self.pos = pos
+        return True
 
     def symbol_statement(self, parent: Node) -> bool:
         # <statement> ::= <expression-stmt> | <compound-stmt> | <selection-stmt> | <iteration-stmt> | <return-stmt>
@@ -348,7 +354,7 @@ class Parser:
         node = Node(parent=parent, symbol=ProductionState.EXPRESSION)
         pos = self.pos
         if self.symbol_var(node):
-            if self.symbol_semicolon(node):
+            if self.symbol_assign(node):
                 if self.symbol_expression(node):
                     parent.append(node)
                     return True
@@ -361,9 +367,9 @@ class Parser:
 
     def symbol_var(self, parent: Node) -> bool:
         # <var> ::= <id> | <id> [ <expression> ]
-        pos = self.pos
         node = Node(parent=parent, symbol=ProductionState.VAR)
         if self.symbol_identifier(node):
+            pos = self.pos
             if self.symbol_bracket_close(node):
                 if self.symbol_expression(node):
                     if self.symbol_bracket_close(node):
@@ -411,7 +417,6 @@ class Parser:
             parent.children.append(node)
             return True
         return False
-
 
     def symbol_additive_expression(self, parent: Node) -> bool:
         # <additive-expression> ::=  <term> <addop> <additive-expression> | <term>

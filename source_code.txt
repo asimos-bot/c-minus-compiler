@@ -1,11 +1,1 @@
-int main(void) {
-
-    int array[ 10];
-    int i = 0; 
-    int whileis = i+ 2;
-    while( i > 10 ) {
-        array[i ] = i + whileis;
-        i = i + 1;
-    }
-    return 9;
-}
+int main(void) {}
