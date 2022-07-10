@@ -44,9 +44,14 @@ class Node:
         self.children = []
         self.depth = depth
 
+    def update_children_depth(self):
+        for child in self.children:
+            child.depth = self.depth + 1
+            child.update_children_depth()
+
     def append(self, node):
-        node.depth = self.depth + 1
         self.children.append(node)
+        self.update_children_depth()
 
     def append_all(self, nodes):
         for node in nodes:
@@ -55,28 +60,40 @@ class Node:
 
     def __repr__(self):
         half = len(self.children)//2
-        tabs = "".join(["\t"] * self.depth)
+        tabs = "\t" * self.depth
         s = ""
         for child in self.children[half:][::-1]:
-            s += str(child.__repr__())
+            s += str(child.__repr__()) + "\n"
         s += tabs
         # has self.token -> leaf (terminal)
         # has self.symbol -> trunk (non terminal)
         if self.token is None:
-            s += str(self.symbol.name)
+            s += str(self.symbol.name) + "\n"
         else:
-            s += str(self.token)
+            s += str(self.token.token_type.name)
         for child in self.children[:half][::-1]:
-            s += str(child.__repr__())
+            s += str(child.__repr__()) + "\n"
         return s
 
 
 # terminal states - num , id , mulop, , addop, relop, , ',' , [] , ; , int , void
 
 
-class ParserException(Exception):
+class ParserTokenException(Exception):
     def __init__(self, token):
         self.message = "Error at line {}: {}".format(token.line, token.content)
+        super().__init__(self.message)
+
+
+class ParserInputStreamNotEmptyException(Exception):
+    def __init__(self):
+        self.message = "Parsing has finished, but there are still tokens left in the input stream"
+        super().__init__(self.message)
+
+
+class ParserException(Exception):
+    def __init__(self, message):
+        self.message = message
         super().__init__(self.message)
 
 
@@ -100,32 +117,38 @@ class Parser:
         root = Node(parent=None, symbol=ProductionState.PROGRAM)
         if not self.symbol_declaration_list(root):
             if self.pos < len(self.tokens):
-                raise ParserException(self.tokens[self.pos])
+                raise ParserTokenException(self.tokens[self.pos])
             else:
-                raise ParserException(self.tokens[self.pos-1])
+                raise ParserException("Parsing failed. Trying to read but input stream is empty")
+
+        #if self.pos != len(self.tokens) - 1:
+        #    raise ParserInputStreamNotEmptyException()
         return root
 
     def symbol_declaration_list(self, parent: Node):
         # < declaration-list > : := <declaration >  <declaration-list > | Ɛ
         node = Node(parent=parent, symbol=ProductionState.DECLARATION_LIST)
+        pos = self.pos
         if self.symbol_declaration(node):
-            if self.symbol_declaration_list(node):
-                parent.append(node)
-        return False
+            self.symbol_declaration_list(node)
+            parent.append(node)
+        else:
+            self.pos = pos
+        return True
 
     def symbol_declaration(self, parent: Node) -> bool:
         # <declaration> ::= <var-declaration> | <fun-declaration>
         pos = self.pos
         node = Node(parent=parent, symbol=ProductionState.DECLARATION)
         if self.symbol_var_declaration(node):
-            parent.children.append(node)
+            parent.append(node)
             return True
 
         # reset node children
         self.pos = pos
         node.children = []
         if self.symbol_fun_declaration(node):
-            parent.children.append(node)
+            parent.append(node)
             return True
         return False
 
@@ -138,7 +161,7 @@ class Parser:
             if self.symbol_identifier(node):
                 pos = self.pos
                 if self.symbol_semicolon(node):
-                    parent.children.append(node)
+                    parent.append(node)
                     return True
             # reset node children
             self.pos = pos
@@ -146,7 +169,7 @@ class Parser:
                 if self.symbol_number(node):
                     if self.symbol_bracket_close(node):
                         if self.symbol_semicolon(node):
-                            parent.children.append(node)
+                            parent.append(node)
                             return True
             self.pos = initial_pos
         return False
@@ -155,11 +178,11 @@ class Parser:
         # <type-specifier> ::= int | void
         node = Node(parent=parent, symbol=ProductionState.TYPE_SPECIFIER)
         if self.symbol_int(node):
-            parent.children.append(node)
+            parent.append(node)
             return True
 
         if self.symbol_void(node):
-            parent.children.append(node)
+            parent.append(node)
             return True
         return False
 
@@ -171,7 +194,7 @@ class Parser:
                 if self.symbol_params(node):
                     if self.symbol_parenthesis_close(node):
                         if self.symbol_compound_stmt(node):
-                            parent.children.append(node)
+                            parent.append(node)
                             return True
         return False
 
@@ -180,13 +203,13 @@ class Parser:
         pos = self.pos
         node = Node(parent=parent, symbol=ProductionState.PARAMS)
         if self.symbol_param_list_1(node):
-            parent.children.append(node)
+            parent.append(node)
             return True
 
         self.pos = pos
         node.children = []
         if self.symbol_void(node):
-            parent.children.append(node)
+            parent.append(node)
             return True
         return False
 
@@ -195,7 +218,7 @@ class Parser:
         node = Node(parent=parent, symbol=ProductionState.PARAM_LIST_1)
         if self.symbol_param(node):
             self.symbol_param_list_2(node)
-            parent.children.append(node)
+            parent.append(node)
             return True
         return False
 
@@ -206,7 +229,7 @@ class Parser:
         if self.symbol_comma(node):
             if self.symbol_param(node):
                 self.symbol_param_list_2(node)
-                parent.children.append(node)
+                parent.append(node)
                 return True
         self.pos = pos
         return False
@@ -220,11 +243,11 @@ class Parser:
                 pos = self.pos
                 if self.symbol_bracket_open(node):
                     if self.symbol_bracket_close(node):
-                        parent.children.append(node)
+                        parent.append(node)
                         return True
                     return False
                 self.pos = pos
-                parent.children.append(node)
+                parent.append(node)
                 return True
         return False
 
@@ -235,7 +258,7 @@ class Parser:
             if self.symbol_local_declarations(node):
                 if self.symbol_statement_list(node):
                     if self.symbol_curly_bracket_close(node):
-                        parent.children.append(node)
+                        parent.append(node)
                         return True
         return False
 
@@ -245,7 +268,7 @@ class Parser:
         node = Node(parent=parent, symbol=ProductionState.LOCAL_DECLARATIONS)
         if self.symbol_var_declaration(node):
             self.symbol_local_declarations(node)
-            parent.children.append(node)
+            parent.append(node)
         else:
             self.pos = pos
         return True
@@ -256,7 +279,7 @@ class Parser:
         pos = self.pos
         if self.symbol_statement(node):
             self.symbol_statement_list(node)
-            parent.children.append(node)
+            parent.append(node)
         else:
             self.pos = pos
         return True
@@ -266,27 +289,27 @@ class Parser:
         pos = self.pos
         node = Node(parent=parent, symbol=ProductionState.STATEMENT)
         if self.symbol_expression_stmt(node):
-            parent.children.append(node)
+            parent.append(node)
             return True
         node.children = []
         self.pos = pos
         if self.symbol_compound_stmt(node):
-            parent.children.append(node)
+            parent.append(node)
             return True
         node.children = []
         self.pos = pos
         if self.symbol_selection_stmt(node):
-            parent.children.append(node)
+            parent.append(node)
             return True
         node.children = []
         self.pos = pos
         if self.symbol_iteration_stmt(node):
-            parent.children.append(node)
+            parent.append(node)
             return True
         node.children = []
         self.pos = pos
         if self.symbol_return_stmt(node):
-            parent.children.append(node)
+            parent.append(node)
             return True
         return False
 
@@ -296,12 +319,12 @@ class Parser:
         node = Node(parent=parent, symbol=ProductionState.EXPRESSION_STMT)
         if self.symbol_expression(node):
             if self.symbol_semicolon(node):
-                parent.children.append(node)
+                parent.append(node)
                 return True
         self.pos = pos
         node.children = []
         if self.symbol_comma(node):
-            parent.children.append(node)
+            parent.append(node)
             return True
         return False
 
@@ -317,10 +340,10 @@ class Parser:
                             pos = self.pos
                             if self.symbol_else(node):
                                 if self.symbol_statement(node):
-                                    parent.children.append(node)
+                                    parent.append(node)
                                     return True
                             self.pos = pos
-                            parent.children.append(node)
+                            parent.append(node)
                             return True
         return False
 
@@ -332,7 +355,7 @@ class Parser:
                 if self.symbol_expression(node):
                     if self.symbol_parenthesis_close(node):
                         if self.symbol_statement(node):
-                            parent.children.append(node)
+                            parent.append(node)
                             return True
         return False
 
@@ -341,11 +364,11 @@ class Parser:
         node = Node(parent=parent, symbol=ProductionState.RETURN_STMT)
         if self.symbol_return(node):
             if self.symbol_semicolon(node):
-                parent.children.append(node)
+                parent.append(node)
                 return True
             if self.symbol_expression(node):
                 if self.symbol_semicolon(node):
-                    parent.children.append(node)
+                    parent.append(node)
                     return True
         return False
 
@@ -388,10 +411,10 @@ class Parser:
             pos = self.pos
             if self.symbol_relop(node):
                 if self.symbol_additive_expression(node):
-                    parent.children.append(node)
+                    parent.append(node)
                     return True
             self.pos = pos
-            parent.children.append(node)
+            parent.append(node)
             return True
         return False
 
@@ -399,22 +422,22 @@ class Parser:
         # <relop> ::= <= | < | > | >= | == | !=
         node = Node(parent=parent, symbol=ProductionState.RELOP)
         if self.symbol_ge(node):
-            parent.children.append(node)
+            parent.append(node)
             return True    
         if self.symbol_lt(node):
-            parent.children.append(node)
+            parent.append(node)
             return True
         if self.symbol_le(node):
-            parent.children.append(node)
+            parent.append(node)
             return True
         if self.symbol_gt(node):
-            parent.children.append(node)
+            parent.append(node)
             return True
         if self.symbol_eq(node):
-            parent.children.append(node)
+            parent.append(node)
             return True
         if self.symbol_ne(node):
-            parent.children.append(node)
+            parent.append(node)
             return True
         return False
 
@@ -425,11 +448,11 @@ class Parser:
             pos = self.pos
             if self.symbol_addop(node):
                 if self.symbol_additive_expression(node):
-                    parent.children.append(node)
+                    parent.append(node)
                     return True
                 return False
             self.pos = pos
-            parent.children.append(node)
+            parent.append(node)
             return True
         return False
 
@@ -437,10 +460,10 @@ class Parser:
         # <addop> ::= + | -
         node = Node(parent=parent, symbol=ProductionState.ADDOP)
         if self.symbol_add(node):
-            parent.children.append(node)
+            parent.append(node)
             return True
         if self.symbol_sub(node):
-            parent.children.append(node)
+            parent.append(node)
             return True
         return False
 
@@ -451,11 +474,11 @@ class Parser:
             pos = self.pos
             if self.symbol_mulop(node):
                 if self.symbol_term(node):
-                    parent.children.append(node)
+                    parent.append(node)
                     return True
                 return False
             self.pos = pos
-            parent.children.append(node)
+            parent.append(node)
             return True
         return False
 
@@ -463,10 +486,10 @@ class Parser:
         # <mulop> ::= * | /
         node = Node(parent=parent, symbol=ProductionState.MULOP)
         if self.symbol_mul(node):
-            parent.children.append(node)
+            parent.append(node)
             return True
         elif self.symbol_div(node):
-            parent.children.append(node)
+            parent.append(node)
             return True
         return False
 
@@ -477,23 +500,23 @@ class Parser:
         if self.symbol_parenthesis_open(node):
             if self.symbol_expression(node):
                 if self.symbol_parenthesis_close(node):
-                    parent.children.append(node)
+                    parent.append(node)
                     return True
             return False
         if self.symbol_var(node):
-            parent.children.append(node)
+            parent.append(node)
             return True
         self.pos = pos
         pos = self.pos
         node.children = []
         if self.symbol_call(node):
-            parent.children.append(node)
+            parent.append(node)
             return True
         self.pos = pos
         pos = self.pos
         node.children = []
         if self.symbol_number(node):
-            parent.children.append(node)
+            parent.append(node)
             return True
         return False
 
@@ -504,7 +527,7 @@ class Parser:
             if self.symbol_parenthesis_open(node):
                 if self.symbol_args(node):
                     if self.symbol_parenthesis_close(node):
-                        parent.children.append(node)
+                        parent.append(node)
                         return True
         return False
 
@@ -512,7 +535,7 @@ class Parser:
         # <args> ::= <arg-list> | Ɛ
         node = Node(parent=parent, symbol=ProductionState.ARGS)
         self.symbol_arg_list(node)
-        parent.children.append(node)
+        parent.append(node)
         return True
 
     def symbol_arg_list(self, parent: Node) -> bool:
@@ -522,16 +545,17 @@ class Parser:
             pos = self.pos
             if self.symbol_comma(node):
                 if self.arg_list(node):
-                    self.match(node)
-                    parent.children.append(node)
+                    parent.append(node)
                     return True
                 return False
             self.pos = pos
-            parent.children.append(node)
+            parent.append(node)
             return True
         return False
 
     def symbol_identifier(self, parent: Node) -> bool:
+        if self.pos >= len(self.tokens):
+            return False
         if self.tokens[self.pos].token_type == TokenType.IDENTIFIER:
             node = Node(parent=parent, symbol=None, token=self.tokens[self.pos])
             parent.append(node)
@@ -540,6 +564,8 @@ class Parser:
         return False
 
     def symbol_number(self, parent: Node) -> bool:
+        if self.pos >= len(self.tokens):
+            return False
         if self.tokens[self.pos].token_type == TokenType.NUMBER:
             node = Node(parent=parent, symbol=None, token=self.tokens[self.pos])
             parent.append(node)
@@ -548,6 +574,8 @@ class Parser:
         return False
 
     def symbol_comment(self, parent: Node) -> bool:
+        if self.pos >= len(self.tokens):
+            return False
         if self.tokens[self.pos].token_type == TokenType.COMMENT:
             node = Node(parent=parent, symbol=None, token=self.tokens[self.pos])
             parent.append(node)
@@ -556,6 +584,8 @@ class Parser:
         return False
 
     def symbol_add(self, parent: Node) -> bool:
+        if self.pos >= len(self.tokens):
+            return False
         if self.tokens[self.pos].token_type == TokenType.SPECIAL_ADD:
             node = Node(parent=parent, symbol=None, token=self.tokens[self.pos])
             parent.append(node)
@@ -564,6 +594,8 @@ class Parser:
         return False
 
     def symbol_sub(self, parent: Node) -> bool:
+        if self.pos >= len(self.tokens):
+            return False
         if self.tokens[self.pos].token_type == TokenType.SPECIAL_SUB:
             node = Node(parent=parent, symbol=None, token=self.tokens[self.pos])
             parent.append(node)
@@ -572,6 +604,8 @@ class Parser:
         return False
 
     def symbol_mul(self, parent: Node) -> bool:
+        if self.pos >= len(self.tokens):
+            return False
         if self.tokens[self.pos].token_type == TokenType.SPECIAL_MUL:
             node = Node(parent=parent, symbol=None, token=self.tokens[self.pos])
             parent.append(node)
@@ -580,6 +614,8 @@ class Parser:
         return False
 
     def symbol_div(self, parent: Node) -> bool:
+        if self.pos >= len(self.tokens):
+            return False
         if self.tokens[self.pos].token_type == TokenType.SPECIAL_DIV:
             node = Node(parent=parent, symbol=None, token=self.tokens[self.pos])
             parent.append(node)
@@ -588,6 +624,8 @@ class Parser:
         return False
 
     def symbol_lt(self, parent: Node) -> bool:
+        if self.pos >= len(self.tokens):
+            return False
         if self.tokens[self.pos].token_type == TokenType.SPECIAL_LT:
             node = Node(parent=parent, symbol=None, token=self.tokens[self.pos])
             parent.append(node)
@@ -596,6 +634,8 @@ class Parser:
         return False
 
     def symbol_le(self, parent: Node) -> bool:
+        if self.pos >= len(self.tokens):
+            return False
         if self.tokens[self.pos].token_type == TokenType.SPECIAL_LE:
             node = Node(parent=parent, symbol=None, token=self.tokens[self.pos])
             parent.append(node)
@@ -604,6 +644,8 @@ class Parser:
         return False
 
     def symbol_gt(self, parent: Node) -> bool:
+        if self.pos >= len(self.tokens):
+            return False
         if self.tokens[self.pos].token_type == TokenType.SPECIAL_GT:
             node = Node(parent=parent, symbol=None, token=self.tokens[self.pos])
             parent.append(node)
@@ -612,6 +654,8 @@ class Parser:
         return False
 
     def symbol_ge(self, parent: Node) -> bool:
+        if self.pos >= len(self.tokens):
+            return False
         if self.tokens[self.pos].token_type == TokenType.SPECIAL_GE:
             node = Node(parent=parent, symbol=None, token=self.tokens[self.pos])
             parent.append(node)
@@ -620,6 +664,8 @@ class Parser:
         return False
 
     def symbol_eq(self, parent: Node) -> bool:
+        if self.pos >= len(self.tokens):
+            return False
         if self.tokens[self.pos].token_type == TokenType.SPECIAL_EQ:
             node = Node(parent=parent, symbol=None, token=self.tokens[self.pos])
             parent.append(node)
@@ -628,6 +674,8 @@ class Parser:
         return False
 
     def symbol_ne(self, parent: Node) -> bool:
+        if self.pos >= len(self.tokens):
+            return False
         if self.tokens[self.pos].token_type == TokenType.SPECIAL_NE:
             node = Node(parent=parent, symbol=None, token=self.tokens[self.pos])
             parent.append(node)
@@ -636,6 +684,8 @@ class Parser:
         return False
 
     def symbol_assign(self, parent: Node) -> bool:
+        if self.pos >= len(self.tokens):
+            return False
         if self.tokens[self.pos].token_type == TokenType.SPECIAL_ASSIGN:
             node = Node(parent=parent, symbol=None, token=self.tokens[self.pos])
             parent.append(node)
@@ -644,6 +694,8 @@ class Parser:
         return False
 
     def symbol_semicolon(self, parent: Node) -> bool:
+        if self.pos >= len(self.tokens):
+            return False
         if self.tokens[self.pos].token_type == TokenType.SPECIAL_SEMICOLON:
             node = Node(parent=parent, symbol=None, token=self.tokens[self.pos])
             parent.append(node)
@@ -652,6 +704,8 @@ class Parser:
         return False
 
     def symbol_comma(self, parent: Node) -> bool:
+        if self.pos >= len(self.tokens):
+            return False
         if self.tokens[self.pos].token_type == TokenType.SPECIAL_COMMA:
             node = Node(parent=parent, symbol=None, token=self.tokens[self.pos])
             parent.append(node)
@@ -660,6 +714,8 @@ class Parser:
         return False
 
     def symbol_parenthesis_open(self, parent: Node) -> bool:
+        if self.pos >= len(self.tokens):
+            return False
         if self.tokens[self.pos].token_type == TokenType.SPECIAL_PARENTHESIS_OPEN:
             node = Node(parent=parent, symbol=None, token=self.tokens[self.pos])
             parent.append(node)
@@ -668,6 +724,8 @@ class Parser:
         return False
 
     def symbol_parenthesis_close(self, parent: Node) -> bool:
+        if self.pos >= len(self.tokens):
+            return False
         if self.tokens[self.pos].token_type == TokenType.SPECIAL_PARENTHESIS_CLOSE:
             node = Node(parent=parent, symbol=None, token=self.tokens[self.pos])
             parent.append(node)
@@ -676,6 +734,8 @@ class Parser:
         return False
 
     def symbol_bracket_open(self, parent: Node) -> bool:
+        if self.pos >= len(self.tokens):
+            return False
         if self.tokens[self.pos].token_type == TokenType.SPECIAL_BRACKET_OPEN:
             node = Node(parent=parent, symbol=None, token=self.tokens[self.pos])
             parent.append(node)
@@ -684,6 +744,8 @@ class Parser:
         return False
 
     def symbol_bracket_close(self, parent: Node) -> bool:
+        if self.pos >= len(self.tokens):
+            return False
         if self.tokens[self.pos].token_type == TokenType.SPECIAL_BRACKET_CLOSE:
             node = Node(parent=parent, symbol=None, token=self.tokens[self.pos])
             parent.append(node)
@@ -692,6 +754,8 @@ class Parser:
         return False
 
     def symbol_curly_bracket_open(self, parent: Node) -> bool:
+        if self.pos >= len(self.tokens):
+            return False
         if self.tokens[self.pos].token_type == TokenType.SPECIAL_CURLY_BRACKET_OPEN:
             node = Node(parent=parent, symbol=None, token=self.tokens[self.pos])
             parent.append(node)
@@ -700,6 +764,8 @@ class Parser:
         return False
 
     def symbol_curly_bracket_close(self, parent: Node) -> bool:
+        if self.pos >= len(self.tokens):
+            return False
         if self.tokens[self.pos].token_type == TokenType.SPECIAL_CURLY_BRACKET_CLOSE:
             node = Node(parent=parent, symbol=None, token=self.tokens[self.pos])
             parent.append(node)
@@ -708,6 +774,8 @@ class Parser:
         return False
 
     def symbol_else(self, parent: Node) -> bool:
+        if self.pos >= len(self.tokens):
+            return False
         if self.tokens[self.pos].token_type == TokenType.KEYWORD_ELSE:
             node = Node(parent=parent, symbol=None, token=self.tokens[self.pos])
             parent.append(node)
@@ -716,6 +784,8 @@ class Parser:
         return False
 
     def symbol_if(self, parent: Node) -> bool:
+        if self.pos >= len(self.tokens):
+            return False
         if self.tokens[self.pos].token_type == TokenType.KEYWORD_IF:
             node = Node(parent=parent, symbol=None, token=self.tokens[self.pos])
             parent.append(node)
@@ -724,6 +794,8 @@ class Parser:
         return False
 
     def symbol_int(self, parent: Node) -> bool:
+        if self.pos >= len(self.tokens):
+            return False
         if self.tokens[self.pos].token_type == TokenType.KEYWORD_INT:
             node = Node(parent=parent, symbol=None, token=self.tokens[self.pos])
             parent.append(node)
@@ -732,6 +804,8 @@ class Parser:
         return False
 
     def symbol_return(self, parent: Node) -> bool:
+        if self.pos >= len(self.tokens):
+            return False
         if self.tokens[self.pos].token_type == TokenType.KEYWORD_RETURN:
             node = Node(parent=parent, symbol=None, token=self.tokens[self.pos])
             parent.append(node)
@@ -740,6 +814,8 @@ class Parser:
         return False
 
     def symbol_void(self, parent: Node) -> bool:
+        if self.pos >= len(self.tokens):
+            return False
         if self.tokens[self.pos].token_type == TokenType.KEYWORD_VOID:
             node = Node(parent=parent, symbol=None, token=self.tokens[self.pos])
             parent.append(node)
@@ -748,6 +824,8 @@ class Parser:
         return False
 
     def symbol_while(self, parent: Node) -> bool:
+        if self.pos >= len(self.tokens):
+            return False
         if self.tokens[self.pos].token_type == TokenType.KEYWORD_WHILE:
             node = Node(parent=parent, symbol=None, token=self.tokens[self.pos])
             parent.append(node)
