@@ -121,8 +121,9 @@ class Parser:
             else:
                 raise ParserException("Parsing failed. Trying to read but input stream is empty")
 
-        #if self.pos != len(self.tokens) - 1:
-        #    raise ParserInputStreamNotEmptyException()
+        if self.pos != len(self.tokens):
+            print(self.pos)
+            raise ParserInputStreamNotEmptyException()
         return root
 
     def symbol_declaration_list(self, parent: Node):
