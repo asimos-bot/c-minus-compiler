@@ -94,12 +94,16 @@ class Parser:
         return root
 
     def symbol_declaration_list(self, parent: Node):
+        print("got here")
         # < declaration-list > : := <declaration >  <declaration-list > | Ɛ
         node = Node(parent=parent, symbol=ProductionState.DECLARATION_LIST)
+        pos = self.pos
         if self.symbol_declaration(node):
-            parent.append(node)
-            return True
-        return False
+            print("true1")
+            if self.symbol_declaration_list(node):
+                parent.append(node)
+                print("true")
+        return True
 
     def symbol_declaration(self, parent: Node) -> bool:
         # <declaration> ::= <var-declaration> | <fun-declaration>
@@ -143,38 +147,40 @@ class Parser:
         # <type-specifier> ::= int | void
         pos = self.pos
         node = Node(parent=parent, symbol=ProductionState.TYPE_SPECIFIER)
-        if self.tokens[0].token_type == TokenType.KEYWORD_INT:
-            self.match(node)
+        if self.symbol_int(node):
+            parent.children.append(node)
             return True
-        elif self.tokens[0].token_type == TokenType.KEYWORD_VOID:
-            self.match(node)
+
+        self.pos = pos
+        node.children = []
+        if self.symbol_void(node):
+            parent.children.append(node)
             return True
         return False
-        parent.children.append(node)
-        return True
 
     def symbol_fun_declaration(self, parent: Node) -> bool:
         # <fun-declaration> ::= <type-specifier> <id> ( <params> ) <compound-stmt>
         node = Node(parent=parent, symbol=ProductionState.FUN_DECLARATION)
-        if self.symbol_type_specifier(node) and self.tokens[0].token == TokenType.IDENTIFIER:
-            if self.tokens[1].token_type == TokenType.SPECIAL_PARENTHESIS_OPEN:
+        if self.symbol_type_specifier(node) and self.symbol_identifier(node):
+            if self.symbol_parenthesis_open(node):
                 if self.symbol_params(node):
-                    if self.tokens[2].token_type == TokenType.SPECIAL_PARENTHESIS_CLOSE:
-                        if self.symbol_compound_stmt():
-                            self.match(node)
-                            self.match(node)
+                    if self.symbol_parenthesis_close(node):
+                        if self.symbol_compound_stmt(node):
                             parent.children.append(node)
                             return True
         return False
 
     def symbol_params(self, parent: Node) -> bool:
         # <params> ::= <param-list> | void
+        pos = self.pos
         node = Node(parent=parent, symbol=ProductionState.PARAMS)
-        if self.symbol_params(node):
+        if self.symbol_param_list_1(node):
             parent.children.append(node)
             return True
-        elif self.tokens[0].token_type == TokenType.KEYWORD_VOID:
-            self.match(node)
+
+        self.pos = pos
+        node.children = []
+        if self.symbol_void(node):
             parent.children.append(node)
             return True
         return False
@@ -190,53 +196,58 @@ class Parser:
 
     def symbol_param_list_2(self, parent: Node) -> bool:
         # <param-list>* ::= , <param> <param-list>* | Ɛ
+        pos = self.pos
         node = Node(parent=parent, symbol=ProductionState.PARAM_LIST_2)
-        if self.tokens[0].token_type == TokenType.SPECIAL_COMMA:
+        if self.symbol_comma(node):
             if self.symbol_param(node):
-                self.match(node)
                 self.symbol_param_list_2(node)
                 parent.children.append(node)
                 return True
+        self.pos = pos
         return False
 
     def symbol_param(self, parent: Node) -> bool:
         # <param> ::= <type-specifier> <id> | <type-specifier> <id> [ ]
         node = Node(parent=parent, symbol=ProductionState.PARAM)
-        if self.symbol_type_specifier(node) and self.tokens[0].token_type == TokenType.IDENTIFIER:
-            if self.tokens[1].token_type == TokenType.SPECIAL_BRACKET_OPEN:
-                if self.tokens[2].token_type == TokenType.SPECIAL_BRACKET_CLOSE:
-                    self.match(node)
-                    self.match(node)
-                    self.match(node)
-                    parent.children.append(node)
-                    return True
-            parent.children.append(node)
-            return True
+        pos = self.pos
+        if self.symbol_type_specifier(node):
+            if self.symbol_identifier(node):
+                pos = self.pos
+                if self.symbol_bracket_open(node):
+                    if self.symbol_bracket_close(node):
+                        parent.children.append(node)
+                        return True
+                    return False
+                self.pos = pos
+                parent.children.append(node)
+                return True
         return False
 
     def symbol_compound_stmt(self, parent: Node) -> bool:
         # <compound-stmt> ::= { <local-declarations> <statement-list> }
         node = Node(parent=parent, symbol=ProductionState.COMPOUND_STMT)
-        if self.tokens[0].token_type == TokenType.SPECIAL_CURLY_BRACKET_OPEN:
+        if self.symbol_curly_bracket_open(node):
             if self.symbol_local_declarations(node):
                 if self.symbol_statement_list(node):
-                    if self.tokens[0].token_type == TokenType.SPECIAL_CURLY_BRACKET_CLOSE:
-                        self.match(node)
+                    if self.symbol_curly_bracket_close(node):
                         parent.children.append(node)
                         return True
         return False
 
     def symbol_local_declarations(self, parent: Node) -> bool:
         # <local-declarations> ::= <var-declaration>  <local-declarations> | Ɛ
+        pos = self.pos
         node = Node(parent=parent, symbol=ProductionState.LOCAL_DECLARATIONS)
         if self.symbol_var_declaration(node):
             self.symbol_local_declarations(node)
             parent.children.append(node)
-            return True
+            return True 
+        self.pos = pos
         return False
 
     def symbol_statement_list(self, parent: Node) -> bool:
         # <statement-list> ::= <statement> <statement-list>  | Ɛ
+        pos = self.pos
         node = Node(parent=parent, symbol=ProductionState.STATEMENT_LIST)
         if self.symbol_statement(node):
             self.symbol_statement_list(node)
@@ -246,67 +257,75 @@ class Parser:
 
     def symbol_statement(self, parent: Node) -> bool:
         # <statement> ::= <expression-stmt> | <compound-stmt> | <selection-stmt> | <iteration-stmt> | <return-stmt>
+        pos = self.pos
         node = Node(parent=parent, symbol=ProductionState.STATEMENT)
         if self.symbol_expression_stmt(node):
             parent.children.append(node)
             return True
-        elif self.symbol_compound_stmt(node):
+        node.children = []
+        self.pos = pos
+        if self.symbol_compound_stmt(node):
             parent.children.append(node)
             return True
-        elif self.symbol_selection_stmt(node):
+        node.children = []
+        self.pos = pos
+        if self.symbol_selection_stmt(node):
             parent.children.append(node)
             return True
-        elif self.symbol_iteration_stmt(node):
+        node.children = []
+        self.pos = pos
+        if self.symbol_iteration_stmt(node):
             parent.children.append(node)
             return True
-        elif self.symbol_return_stmt(node):
+        node.children = []
+        self.pos = pos
+        if self.symbol_return_stmt(node):
             parent.children.append(node)
             return True
         return False
 
     def symbol_expression_stmt(self, parent: Node) -> bool:
         # <expression-stmt> ::= <expression> ; | ;
+        pos = self.pos
         node = Node(parent=parent, symbol=ProductionState.EXPRESSION_STMT)
         if self.symbol_expression(node):
-            if self.tokens[0].token_type == TokenType.SPECIAL_COMMA:
-                self.match(node)
+            if self.symbol_semicolon(node):
                 parent.children.append(node)
                 return True
-        elif self.tokens[0].token_type == TokenType.SPECIAL_COMMA:
-            self.match(node)
+        self.pos = pos
+        node.children = []
+        if self.symbol_comma(node):
             parent.children.append(node)
             return True
         return False
 
     def symbol_selection_stmt(self, parent: Node) -> bool:
         # <selection-stmt> ::= if ( <expression> ) <statement> | if ( <expression> ) <statement> else <statement>
+        pos = self.pos
         node = Node(parent=parent, symbol=ProductionState.SELECTION_STMT)
-        if self.tokens[0].token_type == TokenType.KEYWORD_IF:
-            self.match(node)
-            if self.tokens[1].token_type == TokenType.SPECIAL_PARENTHESIS_OPEN:
+        if self.symbol_if(node):
+            if self.symbol_parenthesis_open(node):
                 if self.symbol_expression(node):
-                    if self.tokens[1].token_type == TokenType.SPECIAL_PARENTHESIS_CLOSE:
-                        self.match(node)
+                    if self.symbol_parenthesis_close():
                         if self.symbol_statement(node):
-                            if self.tokens[3].token_type == TokenType.KEYWORD_ELSE:
-                                if self.symbol_expression(node):
+                            pos = self.pos
+                            if self.symbol_else(node):
+                                if self.symbol_statement(node):
                                     parent.children.append(node)
                                     return True
-                            else:
-                                return True
+                            self.pos = pos
+                            parent.children.append(node)
+                            return True
         return False
 
     def symbol_iteration_stmt(self, parent: Node) -> bool:
         # <iteration-stmt> ::= while ( <expression> ) <statement>
         node = Node(parent=parent, symbol=ProductionState.ITERATION_STMT)
-        if self.tokens[0].token_type == TokenType.KEYWORD_WHILE:
-            if self.tokens[1].token_type == TokenType.SPECIAL_PARENTHESIS_OPEN:
+        if self.symbol_while(node):
+            if self.symbol_parenthesis_open(node):
                 if self.symbol_expression(node):
-                    if self.tokens[2].token_type == TokenType.SPECIAL_PARENTHESIS_CLOSE:
+                    if self.symbol_parenthesis_close(node):
                         if self.symbol_statement(node):
-                            self.match(node)
-                            self.match(node)
-                            self.match(node)
                             parent.children.append(node)
                             return True
         return False
@@ -314,42 +333,45 @@ class Parser:
     def symbol_return_stmt(self, parent: Node) -> bool:
         # <return-stmt> ::= return ; | return <expression> ;
         node = Node(parent=parent, symbol=ProductionState.RETURN_STMT)
-        if self.tokens[0].token_type == TokenType.KEYWORD_RETURN:
-            self.match(node)
-            if self.tokens[0].token_type == TokenType.SPECIAL_SEMICOLON:
-                self.match(node)
+        if self.symbol_return(node):
+            if self.symbol_semicolon(node):
+                parent.children.append(node)
                 return True
             if self.symbol_expression(node):
-                if self.tokens[0].token_type == TokenType.SPECIAL_SEMICOLON:
-                    self.match(node)
+                if self.symbol_semicolon(node):
+                    parent.children.append(node)
                     return True
         return False
 
     def symbol_expression(self, parent: Node) -> bool:
         # <expression> ::= <var> = <expression> | <simple-expression>
         node = Node(parent=parent, symbol=ProductionState.EXPRESSION)
+        pos = self.pos
         if self.symbol_var(node):
-            if self.tokens[0].token_type == TokenType.SPECIAL_SEMICOLON:
-                self.match(node)
+            if self.symbol_semicolon(node):
                 if self.symbol_expression(node):
+                    parent.append(node)
                     return True
-        elif self.symbol_simple_expression(node):
+        node.children = []
+        self.pos = pos
+        if self.symbol_simple_expression(node):
+            parent.append(node)
             return True
         return False
 
     def symbol_var(self, parent: Node) -> bool:
         # <var> ::= <id> | <id> [ <expression> ]
+        pos = self.pos
         node = Node(parent=parent, symbol=ProductionState.VAR)
-        if self.tokens[0].token_type == TokenType.IDENTIFIER:
-            if self.tokens[1].token_type == TokenType.SPECIAL_BRACKET_OPEN:
+        if self.symbol_identifier(node):
+            if self.symbol_bracket_close(node):
                 if self.symbol_expression(node):
-                    if self.tokens[2].token_type == TokenType.SPECIAL_BRACKET_CLOSE:
-                        self.match(node)
-                        self.match(node)
-                        self.match(node)
+                    if self.symbol_bracket_close(node):
+                        parent.append(node)
                         return True
                 return False
-            self.match(node)
+            self.pos = pos
+            parent.append(node)
             return True
         return False
 
@@ -357,33 +379,51 @@ class Parser:
         # <simple-expression> ::= <additive-expression> <relop> <additive-expression> |<additive-expression>
         node = Node(parent=parent, symbol=ProductionState.SIMPLE_EXPRESSION)
         if self.symbol_additive_expression(node):
+            pos = self.pos
             if self.symbol_relop(node):
                 if self.symbol_additive_expression(node):
                     parent.children.append(node)
                     return True
-            else:
-                parent.children.append(node)
-                return True
+            self.pos = pos
+            parent.children.append(node)
+            return True
         return False
 
     def symbol_relop(self, parent: Node) -> bool:
         # <relop> ::= <= | < | > | >= | == | !=
         node = Node(parent=parent, symbol=ProductionState.RELOP)
-        if self.tokens[0].token_type in {TokenType.SPECIAL_LT, TokenType.SPECIAL_LE, TokenType.SPECIAL_GT, TokenType.SPECIAL_GE, TokenType.SPECIAL_EQ, TokenType.SPECIAL_NE}:
-            self.match(node)
+        if self.symbol_ge(node):
+            parent.children.append(node)
+            return True    
+        if self.symbol_lt(node):
             parent.children.append(node)
             return True
+        if self.symbol_le(node):
+            parent.children.append(node)
+            return True
+        if self.symbol_gt(node):
+            parent.children.append(node)
+            return True
+        if self.symbol_eq(node):
+            parent.children.append(node)
+            return True
+        if self.symbol_ne(node):
+            parent.children.append(node)
+            return True
+        return False
+            
 
     def symbol_additive_expression(self, parent: Node) -> bool:
         # <additive-expression> ::=  <term> <addop> <additive-expression> | <term>
         node = Node(parent=parent, symbol=ProductionState.ADDITIVE_EXPRESSION)
         if self.symbol_term(node):
+            pos = self.pos
             if self.symbol_addop(node):
                 if self.symbol_additive_expression(node):
                     parent.children.append(node)
                     return True
-                else:
-                    return False
+                return False
+            self.pos = pos
             parent.children.append(node)
             return True
         return False
@@ -391,12 +431,10 @@ class Parser:
     def symbol_addop(self, parent: Node) -> bool:
         # <addop> ::= + | -
         node = Node(parent=parent, symbol=ProductionState.ADDOP)
-        if self.tokens[0].token_type == TokenType.SPECIAL_ADD:
-            self.match(node)
+        if self.symbol_add(node):
             parent.children.append(node)
             return True
-        elif self.tokens[0].token_type == TokenType.SPECIAL_SUB:
-            self.match(node)
+        if self.symbol_sub(node):
             parent.children.append(node)
             return True
         return False
@@ -405,12 +443,13 @@ class Parser:
         # <term> ::= <factor> <mulop> <term> | <factor>
         node = Node(parent=parent, symbol=ProductionState.TERM)
         if self.symbol_factor(node):
+            pos = self.pos
             if self.symbol_mulop(node):
                 if self.symbol_term(node):
                     parent.children.append(node)
                     return True
-                else:
-                    return False
+                return False
+            self.pos = pos
             parent.children.append(node)
             return True
         return False
@@ -418,12 +457,10 @@ class Parser:
     def symbol_mulop(self, parent: Node) -> bool:
         # <mulop> ::= * | /
         node = Node(parent=parent, symbol=ProductionState.MULOP)
-        if self.tokens[0].token_type == TokenType.SPECIAL_MUL:
-            self.match(node)
+        if self.symbol_mul(node):
             parent.children.append(node)
             return True
-        elif self.tokens[0].token_type == TokenType.SPECIAL_DIV:
-            self.match(node)
+        elif self.symbol_div(node):
             parent.children.append(node)
             return True
         return False
@@ -431,21 +468,26 @@ class Parser:
     def symbol_factor(self, parent: Node) -> bool:
         # <factor> ::= ( <expression> ) | <var> | <call> | <num>
         node = Node(parent=parent, symbol=ProductionState.FACTOR)
-        if self.tokens[0].token_type == TokenType.SPECIAL_PARENTHESIS_OPEN:
+        pos = self.pos
+        if self.symbol_parenthesis_open(node):
             if self.symbol_expression(node):
-                if self.tokens[1].token_type == TokenType.SPECIAL_PARENTHESIS_CLOSE:
-                    self.match(node)
-                    self.match(node)
+                if self.symbol_parenthesis_close(node):
                     parent.children.append(node)
                     return True
-        elif self.symbol_var(node):
+            return False
+        if self.symbol_var(node):
             parent.children.append(node)
             return True
-        elif self.symbol_call(node):
+        self.pos = pos
+        pos = self.pos
+        node.children = []
+        if self.symbol_call(node):
             parent.children.append(node)
             return True
-        elif self.tokens[0].token_type == TokenType.NUMBER:
-            self.match(node)
+        self.pos = pos
+        pos = self.pos
+        node.children = []
+        if self.symbol_number(node):
             parent.children.append(node)
             return True
         return False
@@ -453,13 +495,10 @@ class Parser:
     def symbol_call(self, parent: Node) -> bool:
         # <call> ::= <id> ( <args> )
         node = Node(parent=parent, symbol=ProductionState.CALL)
-        if self.tokens[0].token_type == TokenType.IDENTIFIER:
-            if self.tokens[1].token_type == TokenType.SPECIAL_PARENTHESIS_OPEN:
+        if self.symbol_identifier(node):
+            if self.symbol_parenthesis_open(node):
                 if self.symbol_args(node):
-                    if self.tokens[2].token_type == TokenType.SPECIAL_PARENTHESIS_CLOSE:
-                        self.match(node)
-                        self.match(node)
-                        self.match(node)
+                    if self.symbol_parenthesis_close(node):
                         parent.children.append(node)
                         return True
         return False
@@ -475,12 +514,14 @@ class Parser:
         # <arg-list> ::=  <expression> , <arg-list>  | <expression>
         node = Node(parent=parent, symbol=ProductionState.ARG_LIST)
         if self.symbol_expression(node):
-            if self.tokens[0].token_type == TokenType.SPECIAL_COMMA:
+            pos = self.pos
+            if self.symbol_comma(node):
                 if self.arg_list(node):
                     self.match(node)
                     parent.children.append(node)
                     return True
                 return False
+            self.pos = pos
             parent.children.append(node)
             return True
         return False
