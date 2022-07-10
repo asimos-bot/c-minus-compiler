@@ -33,17 +33,43 @@ class ProductionState(Enum):
     CALL = 28
     ARGS = 29
     ARG_LIST = 30
-    ID = 31
-    NUM = 32
 
 
 class Node:
 
-    def __init__(self, parent, symbol: ProductionState, token: Token = None):
+    def __init__(self, parent, symbol: ProductionState, token: Token = None, depth: int = 0):
         self.parent = parent
         self.symbol = symbol
         self.token = token
         self.children = []
+        self.depth = depth
+
+    def append(self, node):
+        node.depth = self.depth + 1
+        self.children.append(node)
+
+    def append_all(self, nodes):
+        for node in nodes:
+            node.depth = self.depth + 1
+        self.children += nodes
+
+    def __repr__(self):
+        half = len(self.children)//2
+        tabs = "".join(["\t"] * self.depth)
+        s = ""
+        for child in self.children[half:][::-1]:
+            s += str(child.__repr__())
+        s += tabs
+        # has self.token -> leaf (terminal)
+        # has self.symbol -> trunk (non terminal)
+        if self.token is None:
+            s += str(self.symbol.name)
+        else:
+            s += str(self.token)
+        for child in self.children[:half][::-1]:
+            s += str(child.__repr__())
+        return s
+
 
 # terminal states - num , id , mulop, , addop, relop, , ',' , [] , ; , int , void
 
@@ -53,69 +79,69 @@ class ParserException(Exception):
         self.message = "Error at line {}: {}".format(token.line, token.content)
         super().__init__(self.message)
 
+
 class Parser:
     def __init__(self, tokens):
         self.tokens = tokens
-
-    def match(self, parent):
-        parent.children.append(self.tokens[0])
-        self.tokens = self.tokens[1:]
-
-    def error(self):
-        raise ParserException(self.tokens[0])
+        self.pos = 0
 
     def parse(self) -> Node:
         return self.symbol_program()
 
-
     def symbol_program(self) -> bool:
-        node = Node(parent=None, symbol=ProductionState.PROGRAM)
-        return self.symbol_declaration_list(node)
+        root = Node(parent=None, symbol=ProductionState.PROGRAM)
+        self.symbol_declaration_list(root)
+        return root
 
     def symbol_declaration_list(self, parent: Node):
         # < declaration-list > : := <declaration >  <declaration-list > | Ɛ
         node = Node(parent=parent, symbol=ProductionState.DECLARATION_LIST)
         if self.symbol_declaration(node):
-            parent.children.append(node)
+            parent.append(node)
             return True
-        else:
-            return False
+        return False
 
     def symbol_declaration(self, parent: Node) -> bool:
         # <declaration> ::= <var-declaration> | <fun-declaration>
+        pos = self.pos
         node = Node(parent=parent, symbol=ProductionState.DECLARATION)
         if self.symbol_var_declaration(node):
             parent.children.append(node)
             return True
-        elif self.symbol_fun_declaration(node):
+
+        # reset node children
+        self.pos = pos
+        node.children = []
+        if self.symbol_fun_declaration(node):
             parent.children.append(node)
             return True
-        else:
-            return False
+        return False
 
     def symbol_var_declaration(self, parent: Node) -> bool:
         # <var-declaration> ::= <type-specifier> <id> ; | <type-specifier> <id> [ <num> ];
+        pos = self.pos
         node = Node(parent=parent, symbol=ProductionState.VAR_DECLARATION)
         if self.symbol_type_specifier(node):
-            if self.tokens[0].token_type == TokenType.IDENTIFIER:
-                if self.tokens[1].token_type == TokenType.SPECIAL_SEMICOLON:
-                    self.match(node)
-                    self.match(node)
+            pos = self.pos
+            if self.symbol_identifier(node):
+                if self.symbol_semicolon(node):
                     parent.children.append(node)
                     return True
-            elif self.tokens[0].token_type == TokenType.SPECIAL_BRACKET_OPEN:                
-                if self.tokens[1].token_type == TokenType.NUMBER:
-                    if self.tokens[2].token_type == TokenType.SPECIAL_BRACKET_CLOSE and self.tokens[0].token_type == TokenType.SPECIAL_SEMICOLON:
-                        self.match(node)
-                        self.match(node)
-                        self.match(node)
+                else:
+                    return False
+            # reset node children
+            self.pos = pos
+            node.children = []
+            if self.symbol_bracket_open(node):
+                if self.symbol_number(node):
+                    if self.symbol_bracket_close(node) and self.symbol_semicolon(node):
                         parent.children.append(node)
                         return True
         return False
 
-
     def symbol_type_specifier(self, parent: Node) -> bool:
         # <type-specifier> ::= int | void
+        pos = self.pos
         node = Node(parent=parent, symbol=ProductionState.TYPE_SPECIFIER)
         if self.tokens[0].token_type == TokenType.KEYWORD_INT:
             self.match(node)
@@ -152,7 +178,6 @@ class Parser:
             parent.children.append(node)
             return True
         return False
-        
 
     def symbol_param_list_1(self, parent: Node) -> bool:
         # <param-list> ::= <param> <param-list>*
@@ -162,7 +187,7 @@ class Parser:
             parent.children.append(node)
             return True
         return False
-        
+
     def symbol_param_list_2(self, parent: Node) -> bool:
         # <param-list>* ::= , <param> <param-list>* | Ɛ
         node = Node(parent=parent, symbol=ProductionState.PARAM_LIST_2)
@@ -174,8 +199,6 @@ class Parser:
                 return True
         return False
 
-
-        
     def symbol_param(self, parent: Node) -> bool:
         # <param> ::= <type-specifier> <id> | <type-specifier> <id> [ ]
         node = Node(parent=parent, symbol=ProductionState.PARAM)
@@ -190,7 +213,6 @@ class Parser:
             parent.children.append(node)
             return True
         return False
-            
 
     def symbol_compound_stmt(self, parent: Node) -> bool:
         # <compound-stmt> ::= { <local-declarations> <statement-list> }
@@ -203,8 +225,6 @@ class Parser:
                         parent.children.append(node)
                         return True
         return False
-                
-        
 
     def symbol_local_declarations(self, parent: Node) -> bool:
         # <local-declarations> ::= <var-declaration>  <local-declarations> | Ɛ
@@ -243,8 +263,6 @@ class Parser:
             parent.children.append(node)
             return True
         return False
-            
-        
 
     def symbol_expression_stmt(self, parent: Node) -> bool:
         # <expression-stmt> ::= <expression> ; | ;
@@ -259,7 +277,6 @@ class Parser:
             parent.children.append(node)
             return True
         return False
-        
 
     def symbol_selection_stmt(self, parent: Node) -> bool:
         # <selection-stmt> ::= if ( <expression> ) <statement> | if ( <expression> ) <statement> else <statement>
@@ -279,7 +296,6 @@ class Parser:
                                 return True
         return False
 
-
     def symbol_iteration_stmt(self, parent: Node) -> bool:
         # <iteration-stmt> ::= while ( <expression> ) <statement>
         node = Node(parent=parent, symbol=ProductionState.ITERATION_STMT)
@@ -294,7 +310,6 @@ class Parser:
                             parent.children.append(node)
                             return True
         return False
-        
 
     def symbol_return_stmt(self, parent: Node) -> bool:
         # <return-stmt> ::= return ; | return <expression> ;
@@ -309,7 +324,7 @@ class Parser:
                     self.match(node)
                     return True
         return False
-        
+
     def symbol_expression(self, parent: Node) -> bool:
         # <expression> ::= <var> = <expression> | <simple-expression>
         node = Node(parent=parent, symbol=ProductionState.EXPRESSION)
@@ -321,7 +336,6 @@ class Parser:
         elif self.symbol_simple_expression(node):
             return True
         return False
-
 
     def symbol_var(self, parent: Node) -> bool:
         # <var> ::= <id> | <id> [ <expression> ]
@@ -338,9 +352,6 @@ class Parser:
             self.match(node)
             return True
         return False
-                        
-
-            
 
     def symbol_simple_expression(self, parent: Node) -> bool:
         # <simple-expression> ::= <additive-expression> <relop> <additive-expression> |<additive-expression>
@@ -377,7 +388,6 @@ class Parser:
             return True
         return False
 
-
     def symbol_addop(self, parent: Node) -> bool:
         # <addop> ::= + | -
         node = Node(parent=parent, symbol=ProductionState.ADDOP)
@@ -390,8 +400,6 @@ class Parser:
             parent.children.append(node)
             return True
         return False
-
-
 
     def symbol_term(self, parent: Node) -> bool:
         # <term> ::= <factor> <mulop> <term> | <factor>
@@ -419,7 +427,6 @@ class Parser:
             parent.children.append(node)
             return True
         return False
-            
 
     def symbol_factor(self, parent: Node) -> bool:
         # <factor> ::= ( <expression> ) | <var> | <call> | <num>
@@ -475,6 +482,230 @@ class Parser:
                     return True
                 return False
             parent.children.append(node)
+            return True
+        return False
+
+    def symbol_identifier(self, parent: Node) -> bool:
+        if self.tokens[self.pos].token_type == TokenType.IDENTIFIER:
+            node = Node(parent=parent, symbol=None, token=self.tokens[self.pos])
+            parent.append(node)
+            self.pos += 1
+            return True
+        return False
+
+    def symbol_number(self, parent: Node) -> bool:
+        if self.tokens[self.pos].token_type == TokenType.NUMBER:
+            node = Node(parent=parent, symbol=None, token=self.tokens[self.pos])
+            parent.append(node)
+            self.pos += 1
+            return True
+        return False
+
+    def symbol_comment(self, parent: Node) -> bool:
+        if self.tokens[self.pos].token_type == TokenType.COMMENT:
+            node = Node(parent=parent, symbol=None, token=self.tokens[self.pos])
+            parent.append(node)
+            self.pos += 1
+            return True
+        return False
+
+    def symbol_add(self, parent: Node) -> bool:
+        if self.tokens[self.pos].token_type == TokenType.SPECIAL_ADD:
+            node = Node(parent=parent, symbol=None, token=self.tokens[self.pos])
+            parent.append(node)
+            self.pos += 1
+            return True
+        return False
+
+    def symbol_sub(self, parent: Node) -> bool:
+        if self.tokens[self.pos].token_type == TokenType.SPECIAL_SUB:
+            node = Node(parent=parent, symbol=None, token=self.tokens[self.pos])
+            parent.append(node)
+            self.pos += 1
+            return True
+        return False
+
+    def symbol_mul(self, parent: Node) -> bool:
+        if self.tokens[self.pos].token_type == TokenType.SPECIAL_MUL:
+            node = Node(parent=parent, symbol=None, token=self.tokens[self.pos])
+            parent.append(node)
+            self.pos += 1
+            return True
+        return False
+
+    def symbol_div(self, parent: Node) -> bool:
+        if self.tokens[self.pos].token_type == TokenType.SPECIAL_DIV:
+            node = Node(parent=parent, symbol=None, token=self.tokens[self.pos])
+            parent.append(node)
+            self.pos += 1
+            return True
+        return False
+
+    def symbol_lt(self, parent: Node) -> bool:
+        if self.tokens[self.pos].token_type == TokenType.SPECIAL_LT:
+            node = Node(parent=parent, symbol=None, token=self.tokens[self.pos])
+            parent.append(node)
+            self.pos += 1
+            return True
+        return False
+
+    def symbol_le(self, parent: Node) -> bool:
+        if self.tokens[self.pos].token_type == TokenType.SPECIAL_LE:
+            node = Node(parent=parent, symbol=None, token=self.tokens[self.pos])
+            parent.append(node)
+            self.pos += 1
+            return True
+        return False
+
+    def symbol_gt(self, parent: Node) -> bool:
+        if self.tokens[self.pos].token_type == TokenType.SPECIAL_GT:
+            node = Node(parent=parent, symbol=None, token=self.tokens[self.pos])
+            parent.append(node)
+            self.pos += 1
+            return True
+        return False
+
+    def symbol_ge(self, parent: Node) -> bool:
+        if self.tokens[self.pos].token_type == TokenType.SPECIAL_GE:
+            node = Node(parent=parent, symbol=None, token=self.tokens[self.pos])
+            parent.append(node)
+            self.pos += 1
+            return True
+        return False
+
+    def symbol_eq(self, parent: Node) -> bool:
+        if self.tokens[self.pos].token_type == TokenType.SPECIAL_EQ:
+            node = Node(parent=parent, symbol=None, token=self.tokens[self.pos])
+            parent.append(node)
+            self.pos += 1
+            return True
+        return False
+
+    def symbol_ne(self, parent: Node) -> bool:
+        if self.tokens[self.pos].token_type == TokenType.SPECIAL_NE:
+            node = Node(parent=parent, symbol=None, token=self.tokens[self.pos])
+            parent.append(node)
+            self.pos += 1
+            return True
+        return False
+
+    def symbol_assign(self, parent: Node) -> bool:
+        if self.tokens[self.pos].token_type == TokenType.SPECIAL_ASSIGN:
+            node = Node(parent=parent, symbol=None, token=self.tokens[self.pos])
+            parent.append(node)
+            self.pos += 1
+            return True
+        return False
+
+    def symbol_semicolon(self, parent: Node) -> bool:
+        if self.tokens[self.pos].token_type == TokenType.SPECIAL_SEMICOLON:
+            node = Node(parent=parent, symbol=None, token=self.tokens[self.pos])
+            parent.append(node)
+            self.pos += 1
+            return True
+        return False
+
+    def symbol_comma(self, parent: Node) -> bool:
+        if self.tokens[self.pos].token_type == TokenType.SPECIAL_COMMA:
+            node = Node(parent=parent, symbol=None, token=self.tokens[self.pos])
+            parent.append(node)
+            self.pos += 1
+            return True
+        return False
+
+    def symbol_parenthesis_open(self, parent: Node) -> bool:
+        if self.tokens[self.pos].token_type == TokenType.SPECIAL_PARENTHESIS_OPEN:
+            node = Node(parent=parent, symbol=None, token=self.tokens[self.pos])
+            parent.append(node)
+            self.pos += 1
+            return True
+        return False
+
+    def symbol_parenthesis_close(self, parent: Node) -> bool:
+        if self.tokens[self.pos].token_type == TokenType.SPECIAL_PARENTHESIS_CLOSE:
+            node = Node(parent=parent, symbol=None, token=self.tokens[self.pos])
+            parent.append(node)
+            self.pos += 1
+            return True
+        return False
+
+    def symbol_bracket_open(self, parent: Node) -> bool:
+        if self.tokens[self.pos].token_type == TokenType.SPECIAL_BRACKET_OPEN:
+            node = Node(parent=parent, symbol=None, token=self.tokens[self.pos])
+            parent.append(node)
+            self.pos += 1
+            return True
+        return False
+
+    def symbol_bracket_close(self, parent: Node) -> bool:
+        if self.tokens[self.pos].token_type == TokenType.SPECIAL_BRACKET_CLOSE:
+            node = Node(parent=parent, symbol=None, token=self.tokens[self.pos])
+            parent.append(node)
+            self.pos += 1
+            return True
+        return False
+
+    def symbol_curly_bracket_open(self, parent: Node) -> bool:
+        if self.tokens[self.pos].token_type == TokenType.SPECIAL_CURLY_BRACKET_OPEN:
+            node = Node(parent=parent, symbol=None, token=self.tokens[self.pos])
+            parent.append(node)
+            self.pos += 1
+            return True
+        return False
+
+    def symbol_curly_bracket_close(self, parent: Node) -> bool:
+        if self.tokens[self.pos].token_type == TokenType.SPECIAL_CURLY_BRACKET_CLOSE:
+            node = Node(parent=parent, symbol=None, token=self.tokens[self.pos])
+            parent.append(node)
+            self.pos += 1
+            return True
+        return False
+
+    def symbol_else(self, parent: Node) -> bool:
+        if self.tokens[self.pos].token_type == TokenType.KEYWORD_ELSE:
+            node = Node(parent=parent, symbol=None, token=self.tokens[self.pos])
+            parent.append(node)
+            self.pos += 1
+            return True
+        return False
+
+    def symbol_if(self, parent: Node) -> bool:
+        if self.tokens[self.pos].token_type == TokenType.KEYWORD_IF:
+            node = Node(parent=parent, symbol=None, token=self.tokens[self.pos])
+            parent.append(node)
+            self.pos += 1
+            return True
+        return False
+
+    def symbol_int(self, parent: Node) -> bool:
+        if self.tokens[self.pos].token_type == TokenType.KEYWORD_INT:
+            node = Node(parent=parent, symbol=None, token=self.tokens[self.pos])
+            parent.append(node)
+            self.pos += 1
+            return True
+        return False
+
+    def symbol_return(self, parent: Node) -> bool:
+        if self.tokens[self.pos].token_type == TokenType.KEYWORD_RETURN:
+            node = Node(parent=parent, symbol=None, token=self.tokens[self.pos])
+            parent.append(node)
+            self.pos += 1
+            return True
+        return False
+
+    def symbol_void(self, parent: Node) -> bool:
+        if self.tokens[self.pos].token_type == TokenType.KEYWORD_VOID:
+            node = Node(parent=parent, symbol=None, token=self.tokens[self.pos])
+            parent.append(node)
+            self.pos += 1
+            return True
+        return False
+
+    def symbol_while(self, parent: Node) -> bool:
+        if self.tokens[self.pos].token_type == TokenType.KEYWORD_WHILE:
+            node = Node(parent=parent, symbol=None, token=self.tokens[self.pos])
+            parent.append(node)
+            self.pos += 1
             return True
         return False
 
