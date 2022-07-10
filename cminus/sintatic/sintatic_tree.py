@@ -83,7 +83,16 @@ class ParserException(Exception):
 class Parser:
     def __init__(self, tokens):
         self.tokens = tokens
-        self.pos = 0
+        self._pos = 0
+
+    @property
+    def pos(self):
+        return self._pos
+
+    @pos.setter
+    def pos(self, value):
+        print(self.tokens[self.pos], value)
+        self._pos = value
 
     def parse(self) -> Node:
         return self.symbol_program()
@@ -94,15 +103,11 @@ class Parser:
         return root
 
     def symbol_declaration_list(self, parent: Node):
-        print("got here")
         # < declaration-list > : := <declaration >  <declaration-list > | Ɛ
         node = Node(parent=parent, symbol=ProductionState.DECLARATION_LIST)
-        pos = self.pos
         if self.symbol_declaration(node):
-            print("true1")
             if self.symbol_declaration_list(node):
                 parent.append(node)
-                print("true")
         return True
 
     def symbol_declaration(self, parent: Node) -> bool:
@@ -128,14 +133,12 @@ class Parser:
         if self.symbol_type_specifier(node):
             pos = self.pos
             if self.symbol_identifier(node):
+                pos = self.pos
                 if self.symbol_semicolon(node):
                     parent.children.append(node)
                     return True
-                else:
-                    return False
             # reset node children
             self.pos = pos
-            node.children = []
             if self.symbol_bracket_open(node):
                 if self.symbol_number(node):
                     if self.symbol_bracket_close(node) and self.symbol_semicolon(node):
@@ -145,14 +148,11 @@ class Parser:
 
     def symbol_type_specifier(self, parent: Node) -> bool:
         # <type-specifier> ::= int | void
-        pos = self.pos
         node = Node(parent=parent, symbol=ProductionState.TYPE_SPECIFIER)
         if self.symbol_int(node):
             parent.children.append(node)
             return True
 
-        self.pos = pos
-        node.children = []
         if self.symbol_void(node):
             parent.children.append(node)
             return True
@@ -241,7 +241,7 @@ class Parser:
         if self.symbol_var_declaration(node):
             self.symbol_local_declarations(node)
             parent.children.append(node)
-            return True 
+            return True
         self.pos = pos
         return False
 
@@ -411,7 +411,7 @@ class Parser:
             parent.children.append(node)
             return True
         return False
-            
+
 
     def symbol_additive_expression(self, parent: Node) -> bool:
         # <additive-expression> ::=  <term> <addop> <additive-expression> | <term>

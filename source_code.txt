@@ -1,8 +1,5 @@
 int main(void) {
 
-    /* adsfsdf
-      ****** testse
-    */
     int array[ 10];
     int i = 0; 
     int whileis = i+ 2;
