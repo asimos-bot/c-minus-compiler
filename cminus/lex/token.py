@@ -51,4 +51,4 @@ class Token:
         return self.token_type
 
     def __repr__(self) -> str:
-        return f"[type = {self.token_type.name}, token = '{self.content}, line = {self.line}']"
+        return f"[type = {self.token_type.name}, token = '{self.content}', line = {self.line}']"
