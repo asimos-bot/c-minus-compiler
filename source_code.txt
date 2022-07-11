@@ -1,2 +1,10 @@
-int i;
-int main(void){}
+int main(void) {
+
+    int i;
+    i = 0;
+    int whileis;
+    while( i < 10 ) {
+        i = i + 1;
+    }
+    return 9;
+}

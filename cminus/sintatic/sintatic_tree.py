@@ -59,21 +59,42 @@ class Node:
         self.children += nodes
 
     def __repr__(self):
-        half = len(self.children)//2
-        tabs = "\t" * self.depth
-        s = ""
-        for child in self.children[half:][::-1]:
-            s += str(child.__repr__()) + "\n"
-        s += tabs
         # has self.token -> leaf (terminal)
         # has self.symbol -> trunk (non terminal)
         if self.token is None:
-            s += str(self.symbol.name) + "\n"
+            return str(self.symbol.name)
         else:
-            s += str(self.token.token_type.name)
-        for child in self.children[:half][::-1]:
-            s += str(child.__repr__()) + "\n"
+            return str(self.token.token_type.name) + "(" + str(self.token.line) + "): " + str(self.token.content)
+
+    def subtree_to_str(self):
+        half = len(self.children)//2
+        tabs = "  " * self.depth
+        s = ""
+        for child in self.children[half:]:
+            s += str(child.subtree_to_str()) + "\n"
+        s += tabs + self.__repr__()
+
+        for child in self.children[:half]:
+            s += str(child.subtree_to_str()) + "\n"
         return s
+
+    def _to_dot(self, file):
+        for child in self.children:
+            child._to_dot(file)
+            file.write("{} -> {};\n".format(hash(self), hash(child)))
+
+    def _to_dot_declarations(self, file):
+        file.write("\t{} [label=\"{}\"];\n".format(hash(self), self))
+        for child in self.children:
+            child._to_dot_declarations(file)
+            file.write("\t{} [label=\"{}\"];\n".format(hash(child), child))
+
+    def to_dot(self, filename: str):
+        with open(filename, "wt") as file:
+            file.write("digraph {\n")
+            self._to_dot_declarations(file)
+            self._to_dot(file)
+            file.write("}")
 
 
 # terminal states - num , id , mulop, , addop, relop, , ',' , [] , ; , int , void
@@ -122,7 +143,6 @@ class Parser:
                 raise ParserException("Parsing failed. Trying to read but input stream is empty")
 
         if self.pos != len(self.tokens):
-            print(self.pos)
             raise ParserInputStreamNotEmptyException()
         return root
 
@@ -156,7 +176,6 @@ class Parser:
     def symbol_var_declaration(self, parent: Node) -> bool:
         # <var-declaration> ::= <type-specifier> <id> ; | <type-specifier> <id> [ <num> ];
         node = Node(parent=parent, symbol=ProductionState.VAR_DECLARATION)
-        initial_pos = self.pos
         if self.symbol_type_specifier(node):
             pos = self.pos
             if self.symbol_identifier(node):
@@ -172,7 +191,6 @@ class Parser:
                         if self.symbol_semicolon(node):
                             parent.append(node)
                             return True
-            self.pos = initial_pos
         return False
 
     def symbol_type_specifier(self, parent: Node) -> bool:
@@ -394,7 +412,7 @@ class Parser:
         node = Node(parent=parent, symbol=ProductionState.VAR)
         if self.symbol_identifier(node):
             pos = self.pos
-            if self.symbol_bracket_close(node):
+            if self.aymbol_bracket_open(node):
                 if self.symbol_expression(node):
                     if self.symbol_bracket_close(node):
                         parent.append(node)

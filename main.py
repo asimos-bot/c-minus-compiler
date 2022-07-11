@@ -9,4 +9,6 @@ if __name__ == '__main__':
             file.write(str(i) + " " + str(token))
             file.write("\n")
     parser = Parser(list_of_tokens)
-    print(parser.parse())
+    ast = parser.parse()
+    print(ast.subtree_to_str())
+    ast.to_dot("dot.dot")
