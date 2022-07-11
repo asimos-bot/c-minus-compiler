@@ -174,7 +174,6 @@ class Parser:
 
     def symbol_var_declaration(self, parent: Node) -> bool:
         # <var-declaration> ::= <type-specifier> <id> ; | <type-specifier> <id> [ <num> ];
-        print(self.tokens[self.pos])
         node = Node(parent=parent, symbol=ProductionState.VAR_DECLARATION)
         if self.symbol_type_specifier(node):
             pos = self.pos
