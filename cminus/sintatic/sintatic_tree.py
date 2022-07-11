@@ -96,16 +96,6 @@ class Node:
             self._to_dot(file)
             file.write("}")
 
-    def _look_for_local_declarations(self):
-        pass
-    def check_variables_are_declared(self):
-        pass
-
-        # global_identifiers = self.get_global_identifiers()
-        # for child in self.children:
-        #  #   if child.symbol.
-        # look for <local-declarations>
-
         
 
 # terminal states - num , id , mulop, , addop, relop, , ',' , [] , ; , int , void
@@ -140,7 +130,7 @@ class Parser:
         self._pos = value
 
     def add_last_id_to_table(self):
-        self.declared_identifiers.add(self.last_id_pos)
+        self.declared_identifiers.add(self.tokens[self.last_id_pos].content)
 
     def parse(self) -> Node:
         return self.symbol_program()
@@ -188,9 +178,9 @@ class Parser:
         node = Node(parent=parent, symbol=ProductionState.VAR_DECLARATION)
         if self.symbol_type_specifier(node):
             pos = self.pos
+            self.last_id_pos = pos
             if self.symbol_identifier(node, True):
                 pos = self.pos
-                self.last_id_pos = pos
                 if self.symbol_semicolon(node):
                     parent.append(node)
                     return True
@@ -591,8 +581,8 @@ class Parser:
         if self.pos >= len(self.tokens):
             return False
         if not is_declaration:
-            if self.tokens[self.pos] not in self.declared_identifiers and self.tokens[self.pos].token_type == TokenType.IDENTIFIER:
-                raise ParserIdentifierNotDeclaredException(self.tokens[self.last_id_pos])
+            if self.tokens[self.pos].content not in self.declared_identifiers and self.tokens[self.pos].token_type == TokenType.IDENTIFIER:
+                raise ParserIdentifierNotDeclaredException(self.tokens[self.pos])
         if self.tokens[self.pos].token_type == TokenType.IDENTIFIER:
             node = Node(parent=parent, symbol=None, token=self.tokens[self.pos])
             parent.append(node)
