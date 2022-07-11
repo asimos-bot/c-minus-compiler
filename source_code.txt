@@ -1,11 +1,15 @@
+int cu (int y){
+  return 1;
+}
+
 int main(void) {
 
     int i;
     int whileis;
     i = 0;
+    i = cu(1);
     while( i < 0 ) {
       i = 1 + i;
-      d = 0;
     }
     return 9;
 }

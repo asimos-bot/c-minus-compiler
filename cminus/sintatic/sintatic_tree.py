@@ -132,6 +132,9 @@ class Parser:
     def add_last_id_to_table(self):
         self.declared_identifiers.add(self.tokens[self.last_id_pos].content)
 
+    def add_last_func_id_to_table(self):
+        self.declared_identifiers.add(self.tokens[self.last_id_func_pos].content)
+
     def parse(self) -> Node:
         return self.symbol_program()
 
@@ -167,7 +170,7 @@ class Parser:
         self.pos = pos
         node.children = []
         if self.symbol_fun_declaration(node):
-            self.add_last_id_to_table()
+            self.add_last_func_id_to_table()
             parent.append(node)
             return True
         return False
@@ -209,7 +212,7 @@ class Parser:
         # <fun-declaration> ::= <type-specifier> <id> ( <params> ) <compound-stmt>
         node = Node(parent=parent, symbol=ProductionState.FUN_DECLARATION)
         if self.symbol_type_specifier(node):
-            self.last_id_pos = self.pos
+            self.last_id_func_pos = self.pos
             if self.symbol_identifier(node, True):
                 if self.symbol_parenthesis_open(node):
                     if self.symbol_params(node):
@@ -238,6 +241,7 @@ class Parser:
         # <param-list> ::= <param> <param-list>*
         node = Node(parent=parent, symbol=ProductionState.PARAM_LIST_1)
         if self.symbol_param(node):
+            self.add_last_id_to_table()
             self.symbol_param_list_2(node)
             parent.append(node)
             return True
@@ -249,6 +253,7 @@ class Parser:
         node = Node(parent=parent, symbol=ProductionState.PARAM_LIST_2)
         if self.symbol_comma(node):
             if self.symbol_param(node):
+                self.add_last_id_to_table()
                 self.symbol_param_list_2(node)
                 parent.append(node)
                 return True
@@ -260,7 +265,8 @@ class Parser:
         node = Node(parent=parent, symbol=ProductionState.PARAM)
         pos = self.pos
         if self.symbol_type_specifier(node):
-            if self.symbol_identifier(node):
+            self.last_id_pos = self.pos
+            if self.symbol_identifier(node, True):
                 pos = self.pos
                 if self.symbol_bracket_open(node):
                     if self.symbol_bracket_close(node):
