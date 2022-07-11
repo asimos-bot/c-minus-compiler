@@ -1,4 +1,4 @@
-int cu (int y){
+int cu (int a){
   return 1;
 }
 
@@ -7,7 +7,7 @@ int main(void) {
     int i;
     int whileis;
     i = 0;
-    i = cu(1);
+    i = cu() + i + xe();
     while( i < 0 ) {
       i = 1 + i;
     }

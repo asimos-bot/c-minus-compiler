@@ -532,13 +532,13 @@ class Parser:
                     parent.append(node)
                     return True
             return False
-        if self.symbol_var(node):
+        if self.symbol_call(node):
             parent.append(node)
             return True
         self.pos = pos
         pos = self.pos
         node.children = []
-        if self.symbol_call(node):
+        if self.symbol_var(node):
             parent.append(node)
             return True
         self.pos = pos
