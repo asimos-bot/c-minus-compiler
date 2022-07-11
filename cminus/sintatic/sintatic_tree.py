@@ -147,7 +147,7 @@ class Parser:
         return root
 
     def symbol_declaration_list(self, parent: Node):
-        # < declaration-list > : := <declaration >  <declaration-list > | Ɛ
+        # < declaration-list > ::= <declaration >  <declaration-list > | Ɛ
         node = Node(parent=parent, symbol=ProductionState.DECLARATION_LIST)
         pos = self.pos
         if self.symbol_declaration(node):
@@ -175,6 +175,7 @@ class Parser:
 
     def symbol_var_declaration(self, parent: Node) -> bool:
         # <var-declaration> ::= <type-specifier> <id> ; | <type-specifier> <id> [ <num> ];
+
         node = Node(parent=parent, symbol=ProductionState.VAR_DECLARATION)
         if self.symbol_type_specifier(node):
             pos = self.pos
@@ -412,7 +413,7 @@ class Parser:
         node = Node(parent=parent, symbol=ProductionState.VAR)
         if self.symbol_identifier(node):
             pos = self.pos
-            if self.aymbol_bracket_open(node):
+            if self.symbol_bracket_open(node):
                 if self.symbol_expression(node):
                     if self.symbol_bracket_close(node):
                         parent.append(node)
