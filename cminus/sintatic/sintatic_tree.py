@@ -96,6 +96,17 @@ class Node:
             self._to_dot(file)
             file.write("}")
 
+    def _look_for_local_declarations(self):
+        pass
+    def check_variables_are_declared(self):
+        pass
+
+        # global_identifiers = self.get_global_identifiers()
+        # for child in self.children:
+        #  #   if child.symbol.
+        # look for <local-declarations>
+
+        
 
 # terminal states - num , id , mulop, , addop, relop, , ',' , [] , ; , int , void
 
@@ -105,16 +116,9 @@ class ParserTokenException(Exception):
         self.message = "Error at line {}: {}".format(token.line, token.content)
         super().__init__(self.message)
 
-
-class ParserInputStreamNotEmptyException(Exception):
-    def __init__(self):
-        self.message = "Parsing has finished, but there are still tokens left in the input stream"
-        super().__init__(self.message)
-
-
-class ParserException(Exception):
-    def __init__(self, message):
-        self.message = message
+class ParserIdentifierNotDeclaredException(Exception):
+    def __init__(self, token):
+        self.message = "Error at line {}: {} - identifier not declared".format(token.line, token.content)
         super().__init__(self.message)
 
 
@@ -122,6 +126,8 @@ class Parser:
     def __init__(self, tokens):
         self.tokens = tokens
         self._pos = 0
+        self.max_pos = 0
+        self.declared_identifiers = set()
 
     @property
     def pos(self):
@@ -129,25 +135,26 @@ class Parser:
 
     @pos.setter
     def pos(self, value):
+        if self.max_pos < value:
+            self.max_pos = value
         self._pos = value
+
+    def add_last_id_to_table(self):
+        self.declared_identifiers.add(self.last_id_pos)
 
     def parse(self) -> Node:
         return self.symbol_program()
 
     def symbol_program(self) -> bool:
         root = Node(parent=None, symbol=ProductionState.PROGRAM)
-        if not self.symbol_declaration_list(root):
-            if self.pos < len(self.tokens):
-                raise ParserTokenException(self.tokens[self.pos])
-            else:
-                raise ParserException("Parsing failed. Trying to read but input stream is empty")
-
-        if self.pos != len(self.tokens):
-            raise ParserInputStreamNotEmptyException()
+        self.symbol_declaration_list(root)
+            
+        if self.pos < len(self.tokens):
+            raise ParserTokenException(self.tokens[self.max_pos])
         return root
 
     def symbol_declaration_list(self, parent: Node):
-        # < declaration-list > ::= <declaration >  <declaration-list > | Ɛ
+        # <declaration-list> ::= <declaration >  <declaration-list > | Ɛ
         node = Node(parent=parent, symbol=ProductionState.DECLARATION_LIST)
         pos = self.pos
         if self.symbol_declaration(node):
@@ -162,6 +169,7 @@ class Parser:
         pos = self.pos
         node = Node(parent=parent, symbol=ProductionState.DECLARATION)
         if self.symbol_var_declaration(node):
+            self.add_last_id_to_table()
             parent.append(node)
             return True
 
@@ -169,18 +177,20 @@ class Parser:
         self.pos = pos
         node.children = []
         if self.symbol_fun_declaration(node):
+            self.add_last_id_to_table()
             parent.append(node)
             return True
         return False
 
     def symbol_var_declaration(self, parent: Node) -> bool:
         # <var-declaration> ::= <type-specifier> <id> ; | <type-specifier> <id> [ <num> ];
-
+        print(self.tokens[self.pos])
         node = Node(parent=parent, symbol=ProductionState.VAR_DECLARATION)
         if self.symbol_type_specifier(node):
             pos = self.pos
-            if self.symbol_identifier(node):
+            if self.symbol_identifier(node, True):
                 pos = self.pos
+                self.last_id_pos = pos
                 if self.symbol_semicolon(node):
                     parent.append(node)
                     return True
@@ -209,13 +219,15 @@ class Parser:
     def symbol_fun_declaration(self, parent: Node) -> bool:
         # <fun-declaration> ::= <type-specifier> <id> ( <params> ) <compound-stmt>
         node = Node(parent=parent, symbol=ProductionState.FUN_DECLARATION)
-        if self.symbol_type_specifier(node) and self.symbol_identifier(node):
-            if self.symbol_parenthesis_open(node):
-                if self.symbol_params(node):
-                    if self.symbol_parenthesis_close(node):
-                        if self.symbol_compound_stmt(node):
-                            parent.append(node)
-                            return True
+        if self.symbol_type_specifier(node):
+            self.last_id_pos = self.pos
+            if self.symbol_identifier(node, True):
+                if self.symbol_parenthesis_open(node):
+                    if self.symbol_params(node):
+                        if self.symbol_parenthesis_close(node):
+                            if self.symbol_compound_stmt(node):
+                                parent.append(node)
+                                return True
         return False
 
     def symbol_params(self, parent: Node) -> bool:
@@ -287,7 +299,9 @@ class Parser:
         pos = self.pos
         node = Node(parent=parent, symbol=ProductionState.LOCAL_DECLARATIONS)
         if self.symbol_var_declaration(node):
+            self.add_last_id_to_table()
             self.symbol_local_declarations(node)
+
             parent.append(node)
         else:
             self.pos = pos
@@ -573,9 +587,12 @@ class Parser:
             return True
         return False
 
-    def symbol_identifier(self, parent: Node) -> bool:
+    def symbol_identifier(self, parent: Node, is_declaration: bool = False) -> bool:
         if self.pos >= len(self.tokens):
             return False
+        if not is_declaration:
+            if self.tokens[self.pos] not in self.declared_identifiers and self.tokens[self.pos].token_type == TokenType.IDENTIFIER:
+                raise ParserIdentifierNotDeclaredException(self.tokens[self.last_id_pos])
         if self.tokens[self.pos].token_type == TokenType.IDENTIFIER:
             node = Node(parent=parent, symbol=None, token=self.tokens[self.pos])
             parent.append(node)

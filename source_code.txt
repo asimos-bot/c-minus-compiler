@@ -5,6 +5,7 @@ int main(void) {
     i = 0;
     while( i < 0 ) {
       i = 1 + i;
+      d = 0;
     }
     return 9;
 }
