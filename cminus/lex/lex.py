@@ -65,7 +65,7 @@ class Lex:
         for idx, c in enumerate(source):
             if c not in self.VALID and self.state != LexState.COMMENT:
                 raise LexError(
-                    f"ERRO NA LINHA {line}\n\tCaracter '{c}' é inválido")
+                    f"Error at line {line}:  '{c}' character is invalid")
             if self.state == LexState.SPACE:
                 if c.lower() in self.LETTER:
                     token += c
@@ -101,7 +101,7 @@ class Lex:
             elif self.state == LexState.INITIAL_ZERO:
                 if c in self.NUMBER:
                     raise LexError(
-                        f"ERRO NA LINHA {line}\n\tO numero não pode comecar com 0")
+                        f"Error at line {line}:  The number can't start with a 0")
                 self.state = LexState.SPACE
                 return (i, Token(token, line, TokenType.NUMBER))
             elif self.state == LexState.SPACE_TO_SLASH:
@@ -124,7 +124,7 @@ class Lex:
                 if c.lower() in self.LETTER:
                     self.state = LexState.ERROR
                     raise LexError(
-                        f'ERRO NA LINHA {line}\n\tO numero {token} não pode ser seguido por {c}.')
+                        f'Error at line {line}: The number {token} cant be followed by {c}')
                 elif c in self.NUMBER:
                     token += c
                     self.state = LexState.NUMBER
@@ -141,7 +141,7 @@ class Lex:
                 elif c in self.COMPARATOR or c in self.OPERATOR or c in [',', ';']:
                     self.state = LexState.ERROR
                     raise LexError(
-                        f'ERRO NA LINHA {line}\n\tO comparador {token+c} é inválido.')
+                        f'Error at line {line}: The comparator {token+c} is invalid')
                 else:
                     self.state = LexState.SPACE
                     return (i, Token(token, line))
