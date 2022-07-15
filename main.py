@@ -11,4 +11,4 @@ if __name__ == '__main__':
     parser = Parser(list_of_tokens)
     ast = parser.parse()
     print(ast.subtree_to_str())
-    ast.to_dot("dot.dot")
+    ast.to_dot("arvore.dot")
