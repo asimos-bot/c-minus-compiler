@@ -1,0 +1,9 @@
+int main(void) {
+    int i
+    int whileis;
+    i = 1;
+    while( i < 0 ) {
+      i = 1 + i;
+    }
+    return 9;
+}
