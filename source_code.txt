@@ -1,9 +1,9 @@
 int main(void) {
 
-    inte i;
+    int i;
     int whileis;
     i = 0;
-    i = cu() + i + xe();
+    i = 1;
     while( i < 0 ) {
       i = 1 + i;
     }
